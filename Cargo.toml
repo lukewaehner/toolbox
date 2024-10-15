@@ -1,0 +1,18 @@
+[package]
+name = "toolbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aes = "0.8"
+cbc = "0.1"
+cipher = "0.4"
+rand = "0.8"
+base64 = "0.22.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+crossterm = "0.28.1"
+tui = "0.19.0"
+signal-hook = "0.3"
+regex = "1.7"
+dotenv = "0.15"
