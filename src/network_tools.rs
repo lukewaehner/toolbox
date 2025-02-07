@@ -15,7 +15,7 @@ pub struct PingResult {
 }
 
 pub fn ping(address: &str) -> Result<PingResult, Box<dyn std::error::Error>> {
-    println!("Executing ping command for address: {}", address); // Debug print
+    // println!("Executing ping command for address: {}", address); // Debug print
 
     let output = Command::new("ping")
         .arg("-c")

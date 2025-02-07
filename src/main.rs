@@ -1,5 +1,5 @@
-mod password_manager;
 mod network_tools;
+mod password_manager;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent},
@@ -11,6 +11,7 @@ use password_manager::{save_password, PasswordEntry};
 use signal_hook::consts::SIGINT;
 use signal_hook::flag;
 use std::io;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -23,7 +24,6 @@ use tui::{
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
-use std::process::Command;
 
 // Define the PingResult struct
 #[derive(serde::Deserialize, Debug)]
@@ -99,7 +99,10 @@ impl Drop for TerminalCleanup {
             LeaveAlternateScreen,
             DisableMouseCapture // Ensure mouse capture is disabled
         ) {
-            eprintln!("Failed to leave alternate screen or disable mouse capture: {:?}", e);
+            eprintln!(
+                "Failed to leave alternate screen or disable mouse capture: {:?}",
+                e
+            );
         }
     }
 }
@@ -313,9 +316,8 @@ fn handle_enter_address_mode(
                 let result = match tool.as_str() {
                     "ping" => ping(address).map(|output| {
                         // Store the PingResult as a JSON string for simplicity
-                        serde_json::to_string(&output).unwrap_or_else(|_| {
-                            "Failed to serialize ping result.".to_string()
-                        })
+                        serde_json::to_string(&output)
+                            .unwrap_or_else(|_| "Failed to serialize ping result.".to_string())
                     }),
                     // Handle other tools if necessary
                     _ => Err("Unsupported tool".into()),
@@ -373,7 +375,9 @@ fn handle_view_results_mode(
 fn is_dark_mode() -> bool {
     let output = Command::new("osascript")
         .arg("-e")
-        .arg("tell application \"System Events\" to tell appearance preferences to return dark mode")
+        .arg(
+            "tell application \"System Events\" to tell appearance preferences to return dark mode",
+        )
         .output()
         .expect("Failed to execute osascript");
 
@@ -448,10 +452,18 @@ fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     let highlight_style = Style::default().fg(Color::Yellow).bg(Color::Blue);
     let normal_style = Style::default().fg(Color::White);
 
-    let fields = vec![
+    let fields = [
         ("Service: ", &app_state.service, app_state.input_field == 0),
-        ("Username: ", &app_state.username, app_state.input_field == 1),
-        ("Password: ", &app_state.password, app_state.input_field == 2),
+        (
+            "Username: ",
+            &app_state.username,
+            app_state.input_field == 1,
+        ),
+        (
+            "Password: ",
+            &app_state.password,
+            app_state.input_field == 2,
+        ),
     ];
 
     for (i, (label, value, is_selected)) in fields.iter().enumerate() {
@@ -488,7 +500,11 @@ fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
         Ok(passwords) => {
             if passwords.is_empty() {
                 let paragraph = Paragraph::new("No passwords found.")
-                    .block(Block::default().title("Stored Passwords").borders(Borders::ALL))
+                    .block(
+                        Block::default()
+                            .title("Stored Passwords")
+                            .borders(Borders::ALL),
+                    )
                     .style(Style::default().fg(Color::Black)); // Set text color to black
                 f.render_widget(paragraph, f.size());
             } else {
@@ -504,7 +520,11 @@ fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
                     .collect();
 
                 let paragraph = Paragraph::new(text)
-                    .block(Block::default().title("Stored Passwords").borders(Borders::ALL))
+                    .block(
+                        Block::default()
+                            .title("Stored Passwords")
+                            .borders(Borders::ALL),
+                    )
                     .style(Style::default().fg(Color::Black)); // Set text color to black
                 f.render_widget(paragraph, f.size());
             }
@@ -531,7 +551,11 @@ fn draw_network_tools_menu<B: Backend>(f: &mut Frame<B>) {
         Spans::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
-        .block(Block::default().title("Network Tools").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Network Tools")
+                .borders(Borders::ALL),
+        )
         .style(Style::default().fg(Color::Black)); // Set text color to black
     f.render_widget(paragraph, chunks[0]);
 }
@@ -548,12 +572,16 @@ fn draw_address_input<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
         Spans::from(Span::raw(&app_state.address)),
     ];
     let paragraph = Paragraph::new(text)
-        .block(Block::default().title("Address Input").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Address Input")
+                .borders(Borders::ALL),
+        )
         .style(Style::default().fg(Color::White)); // Remove bg setting
     f.render_widget(paragraph, chunks[0]);
 }
 
-use tui::widgets::{Table, Row, Cell};
+use tui::widgets::{Cell, Row, Table};
 
 fn draw_view_results<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     if let Some(ref result) = app_state.result {
