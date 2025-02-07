@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
-use serde::Serialize;
-use serde::Deserialize;
+use std::time::Instant;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PingResult {
@@ -78,5 +78,74 @@ fn parse_ping_output(output: &str) -> Result<PingResult, Box<dyn std::error::Err
         round_trip_avg,
         round_trip_max,
         round_trip_mdev,
+    })
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SpeedTestResult {
+    /// Instantaneous download speed in bits per second.
+    pub download_speed_bps: f64,
+    /// Duration of this measurement (in seconds).
+    pub duration_secs: f64,
+    /// Total number of bytes downloaded.
+    pub file_size_bytes: u64,
+}
+
+/// Measures the download speed by downloading a test file (or a part of one).
+/// Adjust the URL and logic as needed.
+pub fn measure_speed() -> Result<SpeedTestResult, Box<dyn std::error::Error>> {
+    // For example, download a 1MB file.
+    let test_url = "http://ipv4.download.thinkbroadband.com/1MB.zip";
+    let start = Instant::now();
+    let response = reqwest::blocking::get(test_url)?;
+    let bytes = response.bytes()?;
+    let file_size = bytes.len() as u64;
+    let duration = start.elapsed();
+    let seconds = duration.as_secs_f64();
+    if seconds == 0.0 {
+        return Err("Download completed too quickly to measure speed".into());
+    }
+    let speed_bps = (file_size as f64 * 8.0) / seconds;
+    Ok(SpeedTestResult {
+        download_speed_bps: speed_bps,
+        duration_secs: seconds,
+        file_size_bytes: file_size,
+    })
+}
+
+/// Performs a download speed test by fetching a file from a known URL and timing the download.
+///
+/// This function downloads a file (10 MB in this example) and calculates the speed based on
+/// the file size and elapsed time. Adjust the URL or logic as needed.
+pub fn speed_test() -> Result<SpeedTestResult, Box<dyn std::error::Error>> {
+    // URL for a test file. You can change this to any file with a known size.
+    let test_url = "http://ipv4.download.thinkbroadband.com/10MB.zip";
+
+    // Start timing the download.
+    let start = Instant::now();
+
+    // Perform a blocking HTTP GET request.
+    let response = reqwest::blocking::get(test_url)?;
+
+    // Read the response bytes.
+    let bytes = response.bytes()?;
+    let file_size = bytes.len() as u64;
+
+    // Measure the elapsed time.
+    let duration = start.elapsed();
+    let seconds = duration.as_secs_f64();
+
+    // Avoid division by zero.
+    if seconds == 0.0 {
+        return Err("Download completed too quickly to measure speed.".into());
+    }
+
+    // Calculate the download speed in bits per second.
+    let speed_bps = (file_size as f64 * 8.0) / seconds;
+
+    Ok(SpeedTestResult {
+        download_speed_bps: speed_bps,
+        duration_secs: seconds,
+        file_size_bytes: file_size,
     })
 }

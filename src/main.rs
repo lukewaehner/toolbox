@@ -7,15 +7,20 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use network_tools::ping;
+use once_cell::sync::Lazy;
 use password_manager::{save_password, PasswordEntry};
+use serde::{Deserialize, Serialize};
 use signal_hook::consts::SIGINT;
 use signal_hook::flag;
 use std::io;
+use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
@@ -45,6 +50,7 @@ enum InputMode {
     Viewing,
     EnterAddress,
     ViewResults,
+    SpeedTestRunning, // Live speed test mode
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,7 +60,7 @@ enum MenuItem {
     NetworkTools,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct AppState {
     active_menu: MenuItem,
     input_mode: InputMode,
@@ -66,6 +72,7 @@ struct AppState {
     address: String,
     result: Option<String>,
     selected_tool: Option<String>, // New field to store selected network tool
+    speed_test_receiver: Option<Receiver<network_tools::SpeedTestResult>>,
 }
 
 impl Default for AppState {
@@ -81,6 +88,7 @@ impl Default for AppState {
             address: String::new(),
             result: None,
             selected_tool: None,
+            speed_test_receiver: None,
         }
     }
 }
@@ -148,31 +156,55 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, running: Arc<AtomicBool>) -> 
                 InputMode::Normal => draw_network_tools_menu(f),
                 InputMode::EnterAddress => draw_address_input(f, &app_state),
                 InputMode::ViewResults => draw_view_results(f, &app_state),
+                InputMode::SpeedTestRunning => draw_speed_test(f, &app_state),
                 _ => {}
             },
         })?;
 
-        if let Ok(event) = event::read() {
-            match event {
-                event::Event::Key(KeyEvent { code, .. }) => match app_state.input_mode {
-                    InputMode::Normal => handle_normal_mode(&mut app_state, code, &running)?,
-                    InputMode::Editing => handle_editing_mode(&mut app_state, code, &running)?,
-                    InputMode::Viewing => handle_viewing_mode(&mut app_state, code, &running)?,
-                    InputMode::EnterAddress => {
-                        handle_enter_address_mode(&mut app_state, code, &running)?
-                    }
-                    InputMode::ViewResults => {
-                        handle_view_results_mode(&mut app_state, code, &running)?
-                    }
-                },
-                _ => {}
+        if event::poll(Duration::from_millis(10))? {
+            if let Ok(event) = event::read() {
+                match event {
+                    event::Event::Key(KeyEvent { code, .. }) => match app_state.input_mode {
+                        InputMode::Normal => handle_normal_mode(&mut app_state, code, &running)?,
+                        InputMode::Editing => handle_editing_mode(&mut app_state, code, &running)?,
+                        InputMode::Viewing => handle_viewing_mode(&mut app_state, code, &running)?,
+                        InputMode::EnterAddress => {
+                            handle_enter_address_mode(&mut app_state, code, &running)?
+                        }
+                        InputMode::ViewResults => {
+                            handle_view_results_mode(&mut app_state, code, &running)?
+                        }
+                        InputMode::SpeedTestRunning => {
+                            handle_speed_test_running_mode(&mut app_state, code, &running)?
+                        }
+                    },
+                    _ => {}
+                }
             }
         }
-
-        // Sleep briefly to reduce CPU usage
-        thread::sleep(Duration::from_millis(10));
+        if let Some(ref rx) = app_state.speed_test_receiver {
+            loop {
+                match rx.try_recv() {
+                    Ok(speed_result) => {
+                        // Format the result (here, converting bits to megabits per second).
+                        app_state.result = Some(format!(
+                            "Current speed: {:.2} Mbps\nDownloaded: {} bytes in {:.2} sec",
+                            speed_result.download_speed_bps / 1_000_000.0,
+                            speed_result.file_size_bytes,
+                            speed_result.duration_secs
+                        ));
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        // When the sender is dropped (after 30 seconds), reset the mode.
+                        app_state.input_mode = InputMode::Normal;
+                        app_state.speed_test_receiver = None;
+                        break;
+                    }
+                }
+            }
+        }
     }
-
     Ok(())
 }
 
@@ -206,6 +238,29 @@ fn handle_normal_mode(
         (KeyCode::Char('t'), MenuItem::NetworkTools) => {
             app_state.selected_tool = Some("traceroute".to_string());
             app_state.input_mode = InputMode::EnterAddress;
+        }
+        (KeyCode::Char('s'), MenuItem::NetworkTools) => {
+            app_state.input_mode = InputMode::SpeedTestRunning;
+            let (tx, rx) = mpsc::channel();
+            app_state.speed_test_receiver = Some(rx);
+            thread::spawn(move || {
+                let test_duration = Duration::from_secs(30);
+                let start_time = Instant::now();
+                while start_time.elapsed() < test_duration {
+                    match network_tools::measure_speed() {
+                        Ok(speed_result) => {
+                            // Send the latest speed result.
+                            let _ = tx.send(speed_result);
+                        }
+                        Err(e) => {
+                            eprintln!("Speed measurement error: {}", e);
+                        }
+                    }
+                    // Wait a second before the next measurement.
+                    thread::sleep(Duration::from_secs(1));
+                }
+                // When the thread exits, the channel is closed.
+            });
         }
         (KeyCode::Esc, menu_item) if *menu_item != MenuItem::Main => {
             app_state.active_menu = MenuItem::Main;
@@ -369,8 +424,53 @@ fn handle_view_results_mode(
     }
     Ok(())
 }
+fn handle_speed_test_running_mode(
+    app_state: &mut AppState,
+    code: KeyCode,
+    running: &Arc<AtomicBool>,
+) -> io::Result<()> {
+    match code {
+        // Allow the user to cancel the live speed test by pressing Esc.
+        KeyCode::Esc => {
+            app_state.input_mode = InputMode::Normal;
+            app_state.speed_test_receiver = None;
+        }
+        // Allow quitting
+        KeyCode::Char('q') => {
+            running.store(false, Ordering::Relaxed);
+        }
+        _ => {}
+    }
+    Ok(())
+}
 
 // === Drawing Functions ===
+
+static DARK_MODE: Lazy<bool> = Lazy::new(|| {
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(
+            "tell application \"System Events\" to tell appearance preferences to return dark mode",
+        )
+        .output()
+        .unwrap_or_else(|_| {
+            eprintln!("Failed to execute osascript");
+            std::process::Output {
+                status: std::process::ExitStatus::from_raw(0),
+                stdout: b"false".to_vec(),
+                stderr: Vec::new(),
+            }
+        });
+    String::from_utf8_lossy(&output.stdout).trim() == "true"
+});
+
+fn get_text_color() -> tui::style::Color {
+    if *DARK_MODE {
+        tui::style::Color::White
+    } else {
+        tui::style::Color::Black
+    }
+}
 
 fn is_dark_mode() -> bool {
     let output = Command::new("osascript")
@@ -383,14 +483,6 @@ fn is_dark_mode() -> bool {
 
     let result = String::from_utf8_lossy(&output.stdout);
     result.trim() == "true"
-}
-
-fn get_text_color() -> Color {
-    if is_dark_mode() {
-        Color::White
-    } else {
-        Color::Black
-    }
 }
 
 fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
@@ -412,6 +504,8 @@ fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
 }
 
 fn draw_password_manager_menu<B: Backend>(f: &mut Frame<B>) {
+    let text_color = get_text_color();
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(100)].as_ref())
@@ -429,7 +523,7 @@ fn draw_password_manager_menu<B: Backend>(f: &mut Frame<B>) {
                 .title("Password Manager")
                 .borders(Borders::ALL),
         )
-        .style(Style::default().fg(Color::Black)); // Set text color to black
+        .style(Style::default().fg(text_color)); // Set text color to black
     f.render_widget(paragraph, chunks[0]);
 }
 
@@ -496,6 +590,8 @@ fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 }
 
 fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
+    let text_color = get_text_color();
+
     match password_manager::retrieve_password() {
         Ok(passwords) => {
             if passwords.is_empty() {
@@ -525,7 +621,7 @@ fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
                             .title("Stored Passwords")
                             .borders(Borders::ALL),
                     )
-                    .style(Style::default().fg(Color::Black)); // Set text color to black
+                    .style(Style::default().fg(text_color)); // Set text color to black
                 f.render_widget(paragraph, f.size());
             }
         }
@@ -547,6 +643,7 @@ fn draw_network_tools_menu<B: Backend>(f: &mut Frame<B>) {
     let text = vec![
         Spans::from(Span::raw("p. Ping")),
         Spans::from(Span::raw("t. Traceroute")),
+        Spans::from(Span::raw("s. Speed Test")),
         Spans::from(Span::raw("Esc. Back to Main Menu")),
         Spans::from(Span::raw("Press 'q' to quit")),
     ];
@@ -579,6 +676,24 @@ fn draw_address_input<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
         )
         .style(Style::default().fg(Color::White)); // Remove bg setting
     f.render_widget(paragraph, chunks[0]);
+}
+
+fn draw_speed_test<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+    // If a result exists, display it; otherwise, show that the test is running.
+    let text = if let Some(ref result) = app_state.result {
+        result.clone()
+    } else {
+        "Running speed test...".to_string()
+    };
+
+    let paragraph = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title("Live Speed Test (Press Esc to cancel)")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White));
+    f.render_widget(paragraph, f.size());
 }
 
 use tui::widgets::{Cell, Row, Table};
