@@ -2,8 +2,11 @@
 mod network_tools;
 mod password_manager;
 mod system_utilities;
+mod task_scheduler;
 
 // Crate list
+use crate::task_scheduler::{EmailConfig, ReminderType, TaskPriority, TaskScheduler, TaskStatus};
+use chrono::{Local, NaiveDateTime, Utc};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent},
     execute,
@@ -54,6 +57,11 @@ enum InputMode {
     EnterAddress,
     ViewResults,
     SpeedTestRunning,
+    AddingTask,
+    EditingTask,
+    ViewingTasks,
+    AddingReminder,
+    ConfiguringEmail,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +70,7 @@ enum MenuItem {
     PasswordManager,
     NetworkTools,
     SystemUtilities,
+    TaskScheduler,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -110,6 +119,23 @@ struct AppState {
     status_message: Option<StatusMessage>,
     process_sort_type: ProcessSortType,
     selected_process_pid: Option<u32>,
+    task_scheduler: Option<Arc<Mutex<TaskScheduler>>>,
+    task_filter: Option<String>,
+    task_title: String,
+    task_description: String,
+    task_due_date: String,
+    task_priority: TaskPriority,
+    task_tags: String,
+    selected_task_id: Option<u32>,
+    email_address: String,
+    email_smtp_server: String,
+    email_smtp_port: String,
+    email_username: String,
+    email_password: String,
+    email_config_field: usize,
+    reminder_date: String,
+    reminder_time: String,
+    reminder_type: ReminderType,
 }
 
 #[derive(Debug, Clone)]
@@ -151,6 +177,23 @@ impl Default for AppState {
             status_message: None,
             process_sort_type: ProcessSortType::CpuUsage,
             selected_process_pid: None,
+            task_scheduler: None,
+            task_filter: None,
+            task_title: String::new(),
+            task_description: String::new(),
+            task_due_date: String::new(),
+            task_priority: TaskPriority::Medium,
+            task_tags: String::new(),
+            selected_task_id: None,
+            email_address: String::new(),
+            email_smtp_server: String::new(),
+            email_smtp_port: String::from("587"),
+            email_username: String::new(),
+            email_password: String::new(),
+            email_config_field: 0,
+            reminder_date: String::new(),
+            reminder_time: String::new(),
+            reminder_type: ReminderType::Email,
         }
     }
 }
@@ -182,6 +225,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
+    // Craete task scheduler
+    let task_scheduler = Arc::new(Mutex::new(TaskScheduler::new("tasks.json")));
+
+    let _scheduler_thread = task_scheduler::run_scheduler_background_thread(task_scheduler.clone());
+
     // Instantiate TerminalCleanup to ensure it is used
     let _cleanup = TerminalCleanup;
 
@@ -193,7 +241,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = tui::backend::CrosstermBackend::new(stdout);
     let mut terminal = tui::Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, running);
+    let mut app_state = AppState::default();
+    app_state.task_scheduler = Some(task_scheduler.clone());
+
+    let res = run_app(&mut terminal, running, app_state);
 
     if let Err(err) = res {
         println!("{:?}", err);
@@ -202,9 +253,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, running: Arc<AtomicBool>) -> io::Result<()> {
-    let mut app_state = AppState::default();
-
+fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    running: Arc<AtomicBool>,
+    mut app_state: AppState,
+) -> io::Result<()> {
     while running.load(Ordering::Relaxed) {
         if app_state.system_monitor.is_some() {
             if let Some(ref monitor) = app_state.system_monitor {
@@ -245,6 +298,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, running: Arc<AtomicBool>) -> 
                     draw_system_utilities_menu(f);
                 }
             }
+            MenuItem::TaskScheduler => match app_state.input_mode {
+                InputMode::Normal => draw_task_scheduler_menu(f),
+                InputMode::AddingTask => draw_add_task(f, &app_state),
+                InputMode::ViewingTasks => draw_view_tasks(f, &app_state),
+                InputMode::ConfiguringEmail => draw_email_config(f, &app_state),
+                InputMode::AddingReminder => draw_add_reminder(f, &app_state),
+                InputMode::Editing => {}
+                InputMode::Viewing => {}
+                InputMode::EnterAddress => {}
+                InputMode::ViewResults => {}
+                InputMode::SpeedTestRunning => {}
+                InputMode::EditingTask => {}
+            },
         })?;
 
         // Refresh system data if needed
@@ -294,11 +360,65 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, running: Arc<AtomicBool>) -> 
                         MenuItem::SystemUtilities => {
                             handle_system_utilities_mode(&mut app_state, code, &running)?
                         }
+                        MenuItem::TaskScheduler => match app_state.input_mode {
+                            InputMode::Normal => {
+                                handle_normal_mode(&mut app_state, code, &running)?
+                            }
+                            InputMode::AddingTask => {
+                                handle_adding_task_mode(&mut app_state, code, &running)?
+                            }
+                            InputMode::ViewingTasks => {
+                                handle_viewing_tasks_mode(&mut app_state, code, &running)?
+                            }
+                            InputMode::ConfiguringEmail => {
+                                handle_email_config_mode(&mut app_state, code, &running)?
+                            }
+                            InputMode::AddingReminder => {
+                                handle_adding_reminder_mode(&mut app_state, code, &running)?
+                            }
+                            // The below modes don't apply to TaskScheduler, so just do nothing
+                            InputMode::Editing
+                            | InputMode::Viewing
+                            | InputMode::EnterAddress
+                            | InputMode::ViewResults
+                            | InputMode::SpeedTestRunning
+                            | InputMode::EditingTask => {}
+                        },
                     },
                     _ => {}
                 }
             }
         }
+
+        if let Some(ref task_scheduler) = app_state.task_scheduler {
+            static LAST_REMINDER_CHECK: Lazy<Mutex<std::time::Instant>> =
+                Lazy::new(|| Mutex::new(std::time::Instant::now()));
+
+            if let Ok(mut last_check) = LAST_REMINDER_CHECK.lock() {
+                if last_check.elapsed() >= Duration::from_secs(5) {
+                    let mut triggered_reminders = Vec::new();
+
+                    if let Ok(mut sched) = task_scheduler.lock() {
+                        triggered_reminders = sched.check_reminders();
+                    }
+
+                    if !triggered_reminders.is_empty() {
+                        let reminder_count = triggered_reminders.len();
+                        app_state.status_message = Some(prepare_status_message(
+                            &format!(
+                                "{} reminder{} triggered",
+                                reminder_count,
+                                if reminder_count == 1 { "" } else { "s" }
+                            ),
+                            StatusMessageType::Info,
+                            5,
+                        ));
+                    }
+                    *last_check = std::time::Instant::now();
+                }
+            }
+        }
+
         // the existing speed test receiver handling block
         if let Some(ref rx) = app_state.speed_test_receiver {
             loop {
@@ -384,6 +504,23 @@ fn handle_normal_mode(
                     app_state.system_snapshot = Some(monitor.refresh_and_get());
                 }
             }
+        }
+        (KeyCode::Char('4'), MenuItem::Main) => {
+            app_state.active_menu = MenuItem::TaskScheduler;
+        }
+        (KeyCode::Char('a'), MenuItem::TaskScheduler) => {
+            app_state.input_mode = InputMode::AddingTask;
+            // Initialize with today's date
+            let today = Local::now();
+            app_state.task_due_date = today.format("%Y-%m-%d").to_string();
+        }
+
+        (KeyCode::Char('v'), MenuItem::TaskScheduler) => {
+            app_state.input_mode = InputMode::ViewingTasks;
+        }
+
+        (KeyCode::Char('e'), MenuItem::TaskScheduler) => {
+            app_state.input_mode = InputMode::ConfiguringEmail;
         }
         (KeyCode::Char('r'), MenuItem::SystemUtilities) => {
             app_state.selected_system_tool = Some("resource_monitor".to_string());
@@ -573,6 +710,218 @@ fn handle_viewing_mode(
     Ok(())
 }
 
+fn handle_email_config_mode(
+    app_state: &mut AppState,
+    code: KeyCode,
+    running: &Arc<AtomicBool>,
+) -> io::Result<()> {
+    match code {
+        KeyCode::Esc => {
+            app_state.input_mode = InputMode::Normal;
+        }
+        KeyCode::Char('t') if app_state.email_config_field == 99 => {
+            if let Some(ref task_scheduler) = app_state.task_scheduler {
+                if let Ok(scheduler) = task_scheduler.lock() {
+                    match scheduler.test_email_config() {
+                        Ok(_) => {
+                            app_state.status_message = Some(prepare_status_message(
+                                "Test email sent successfully!",
+                                StatusMessageType::Success,
+                                5,
+                            ));
+                        }
+                        Err(e) => {
+                            app_state.status_message = Some(prepare_status_message(
+                                &format!("Failed to send test email: {}", e),
+                                StatusMessageType::Error,
+                                10, // Longer display time for errors
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        KeyCode::Tab => {
+            app_state.email_config_field = (app_state.email_config_field + 1) % 5;
+        }
+        KeyCode::BackTab => {
+            app_state.email_config_field = (app_state.email_config_field + 4) % 5;
+        }
+        KeyCode::Char(c) => match app_state.email_config_field {
+            0 => app_state.email_address.push(c),
+            1 => app_state.email_smtp_server.push(c),
+            2 => app_state.email_smtp_port.push(c),
+            3 => app_state.email_username.push(c),
+            4 => app_state.email_password.push(c),
+            _ => {}
+        },
+        KeyCode::Backspace => match app_state.email_config_field {
+            0 => {
+                app_state.email_address.pop();
+            }
+            1 => {
+                app_state.email_smtp_server.pop();
+            }
+            2 => {
+                app_state.email_smtp_port.pop();
+            }
+            3 => {
+                app_state.email_username.pop();
+            }
+            4 => {
+                app_state.email_password.pop();
+            }
+            _ => {}
+        },
+        KeyCode::Enter => {
+            println!("Saving email config...");
+            // Validate and save email config
+            if app_state.email_address.is_empty()
+                || app_state.email_smtp_server.is_empty()
+                || app_state.email_smtp_port.is_empty()
+                || app_state.email_username.is_empty()
+                || app_state.email_password.is_empty()
+            {
+                println!("Email config validation failed - empty fields");
+                app_state.status_message = Some(prepare_status_message(
+                    "All fields are required",
+                    StatusMessageType::Error,
+                    3,
+                ));
+                return Ok(());
+            }
+
+            // Parse port
+            let port = match app_state.email_smtp_port.parse::<u16>() {
+                Ok(p) => p,
+                Err(_) => {
+                    app_state.status_message = Some(prepare_status_message(
+                        "Invalid port number",
+                        StatusMessageType::Error,
+                        3,
+                    ));
+                    return Ok(());
+                }
+            };
+
+            // Create config
+            let config = EmailConfig {
+                email: app_state.email_address.clone(),
+                smtp_server: app_state.email_smtp_server.clone(),
+                smtp_port: port,
+                username: app_state.email_username.clone(),
+                password: app_state.email_password.clone(),
+            };
+
+            // Set config
+            if let Some(ref task_scheduler) = app_state.task_scheduler {
+                if let Ok(mut scheduler) = task_scheduler.lock() {
+                    scheduler.set_email_config(config);
+                    app_state.status_message = Some(prepare_status_message(
+                        "Email configuration saved",
+                        StatusMessageType::Success,
+                        3,
+                    ));
+                    app_state.input_mode = InputMode::Normal;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_adding_reminder_mode(
+    app_state: &mut AppState,
+    code: KeyCode,
+    running: &Arc<AtomicBool>,
+) -> io::Result<()> {
+    match code {
+        KeyCode::Esc => {
+            app_state.input_mode = InputMode::ViewingTasks;
+            app_state.reminder_date.clear();
+            app_state.reminder_time.clear();
+        }
+        KeyCode::Char('q') => {
+            running.store(false, Ordering::Relaxed);
+        }
+        KeyCode::Tab => {
+            app_state.input_field = (app_state.input_field + 1) % 2;
+        }
+        KeyCode::BackTab => {
+            app_state.input_field = (app_state.input_field + 1) % 2;
+        }
+        KeyCode::Char(c) => match app_state.input_field {
+            0 => app_state.reminder_date.push(c),
+            1 => app_state.reminder_time.push(c),
+            _ => {}
+        },
+        KeyCode::Backspace => match app_state.input_field {
+            0 => {
+                app_state.reminder_date.pop();
+            }
+            1 => {
+                app_state.reminder_time.pop();
+            }
+            _ => {}
+        },
+        KeyCode::Up | KeyCode::Down => {
+            // Cycle through reminder types
+            app_state.reminder_type = match app_state.reminder_type {
+                ReminderType::Email => ReminderType::Notification,
+                ReminderType::Notification => ReminderType::Both,
+                ReminderType::Both => ReminderType::Email,
+            };
+        }
+        KeyCode::Enter => {
+            if let Some(task_id) = app_state.selected_task_id {
+                // Parse date and time
+                let reminder_datetime =
+                    format!("{} {}", app_state.reminder_date, app_state.reminder_time);
+
+                if let Ok(dt) = NaiveDateTime::parse_from_str(
+                    &format!("{} 00", reminder_datetime),
+                    "%Y-%m-%d %H:%M %S",
+                ) {
+                    let timestamp = dt.timestamp();
+
+                    // Add reminder
+                    if let Some(ref task_scheduler) = app_state.task_scheduler {
+                        if let Ok(mut scheduler) = task_scheduler.lock() {
+                            if let Err(e) = scheduler.add_reminder_to_task(
+                                task_id,
+                                timestamp,
+                                app_state.reminder_type.clone(),
+                            ) {
+                                app_state.status_message = Some(prepare_status_message(
+                                    &format!("Error: {}", e),
+                                    StatusMessageType::Error,
+                                    3,
+                                ));
+                            } else {
+                                app_state.status_message = Some(prepare_status_message(
+                                    "Reminder added successfully",
+                                    StatusMessageType::Success,
+                                    3,
+                                ));
+                                app_state.input_mode = InputMode::ViewingTasks;
+                            }
+                        }
+                    }
+                } else {
+                    app_state.status_message = Some(prepare_status_message(
+                        "Invalid date or time format",
+                        StatusMessageType::Error,
+                        3,
+                    ));
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn handle_enter_address_mode(
     app_state: &mut AppState,
     code: KeyCode,
@@ -646,6 +995,850 @@ fn handle_view_results_mode(
     }
     Ok(())
 }
+
+fn handle_adding_task_mode(
+    app_state: &mut AppState,
+    code: KeyCode,
+    running: &Arc<AtomicBool>,
+) -> io::Result<()> {
+    match code {
+        KeyCode::Esc => {
+            app_state.input_mode = InputMode::Normal;
+            app_state.task_title.clear();
+            app_state.task_description.clear();
+            app_state.task_due_date.clear();
+            app_state.task_tags.clear();
+        }
+        KeyCode::Tab => {
+            app_state.input_field = (app_state.input_field + 1) % 4; // Cycle through title, description, due date, tags
+        }
+        KeyCode::BackTab => {
+            app_state.input_field = (app_state.input_field + 3) % 4;
+        }
+        KeyCode::Char('q') => {
+            running.store(false, Ordering::Relaxed);
+        }
+        KeyCode::Char(c) => match app_state.input_field {
+            0 => app_state.task_title.push(c),
+            1 => app_state.task_description.push(c),
+            2 => app_state.task_due_date.push(c),
+            3 => app_state.task_tags.push(c),
+            _ => {}
+        },
+        KeyCode::Backspace => match app_state.input_field {
+            0 => {
+                app_state.task_title.pop();
+            }
+            1 => {
+                app_state.task_description.pop();
+            }
+            2 => {
+                app_state.task_due_date.pop();
+            }
+            3 => {
+                app_state.task_tags.pop();
+            }
+            _ => {}
+        },
+        KeyCode::Enter => {
+            // Parse due date
+            let due_date = parse_due_date(&app_state.task_due_date);
+
+            if let Some(timestamp) = due_date {
+                // Parse tags
+                let tags: Vec<String> = app_state
+                    .task_tags
+                    .split(',')
+                    .map(|tag| tag.trim().to_string())
+                    .filter(|tag| !tag.is_empty())
+                    .collect();
+
+                // Add task
+                if let Some(ref task_scheduler) = app_state.task_scheduler {
+                    if let Ok(mut scheduler) = task_scheduler.lock() {
+                        scheduler.add_task(
+                            app_state.task_title.clone(),
+                            app_state.task_description.clone(),
+                            timestamp,
+                            app_state.task_priority.clone(),
+                            tags,
+                        );
+
+                        // Success message
+                        app_state.status_message = Some(prepare_status_message(
+                            "Task added successfully",
+                            StatusMessageType::Success,
+                            3,
+                        ));
+
+                        // Clear fields and return to normal mode
+                        app_state.task_title.clear();
+                        app_state.task_description.clear();
+                        app_state.task_due_date.clear();
+                        app_state.task_tags.clear();
+                        app_state.input_mode = InputMode::Normal;
+                    }
+                }
+            } else {
+                // Error message for invalid date
+                app_state.status_message = Some(prepare_status_message(
+                    "Invalid due date format (use YYYY-MM-DD)",
+                    StatusMessageType::Error,
+                    3,
+                ));
+            }
+        }
+        KeyCode::Up => {
+            // Cycle through priorities
+            app_state.task_priority = match app_state.task_priority {
+                TaskPriority::Low => TaskPriority::Urgent,
+                TaskPriority::Medium => TaskPriority::Low,
+                TaskPriority::High => TaskPriority::Medium,
+                TaskPriority::Urgent => TaskPriority::High,
+            };
+        }
+        KeyCode::Down => {
+            // Cycle through priorities
+            app_state.task_priority = match app_state.task_priority {
+                TaskPriority::Low => TaskPriority::Medium,
+                TaskPriority::Medium => TaskPriority::High,
+                TaskPriority::High => TaskPriority::Urgent,
+                TaskPriority::Urgent => TaskPriority::Low,
+            };
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_viewing_tasks_mode(
+    app_state: &mut AppState,
+    code: KeyCode,
+    running: &Arc<AtomicBool>,
+) -> io::Result<()> {
+    match code {
+        KeyCode::Esc => {
+            app_state.input_mode = InputMode::Normal;
+            app_state.selected_task_id = None;
+        }
+        KeyCode::Char('q') => {
+            running.store(false, Ordering::Relaxed);
+        }
+        KeyCode::Char('r') => {
+            // Add reminder to selected task
+            if let Some(task_id) = app_state.selected_task_id {
+                app_state.input_mode = InputMode::AddingReminder;
+                app_state.reminder_date = Local::now().format("%Y-%m-%d").to_string();
+                app_state.reminder_time = Local::now().format("%H:%M").to_string();
+            }
+        }
+        KeyCode::Char('d') => {
+            // Delete selected task
+            if let Some(task_id) = app_state.selected_task_id {
+                if let Some(ref task_scheduler) = app_state.task_scheduler {
+                    if let Ok(mut scheduler) = task_scheduler.lock() {
+                        if let Err(e) = scheduler.delete_task(task_id) {
+                            app_state.status_message = Some(prepare_status_message(
+                                &format!("Error: {}", e),
+                                StatusMessageType::Error,
+                                3,
+                            ));
+                        } else {
+                            app_state.status_message = Some(prepare_status_message(
+                                "Task deleted successfully",
+                                StatusMessageType::Success,
+                                3,
+                            ));
+                            app_state.selected_task_id = None;
+                        }
+                    }
+                }
+            }
+        }
+        KeyCode::Char('c') => {
+            // Complete selected task
+            if let Some(task_id) = app_state.selected_task_id {
+                if let Some(ref task_scheduler) = app_state.task_scheduler {
+                    if let Ok(mut scheduler) = task_scheduler.lock() {
+                        if let Some(task) = scheduler.get_task(task_id) {
+                            let mut updated_task = task.clone();
+                            updated_task.status = TaskStatus::Completed;
+
+                            if let Err(e) = scheduler.update_task(task_id, updated_task) {
+                                app_state.status_message = Some(prepare_status_message(
+                                    &format!("Error: {}", e),
+                                    StatusMessageType::Error,
+                                    3,
+                                ));
+                            } else {
+                                app_state.status_message = Some(prepare_status_message(
+                                    "Task marked as completed",
+                                    StatusMessageType::Success,
+                                    3,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        KeyCode::Up => {
+            // Navigate tasks up
+            if let Some(ref task_scheduler) = app_state.task_scheduler {
+                if let Ok(scheduler) = task_scheduler.lock() {
+                    let tasks = scheduler.get_all_tasks();
+                    if tasks.is_empty() {
+                        return Ok(());
+                    }
+
+                    // Sort tasks by due date
+                    let mut task_ids: Vec<u32> = tasks.iter().map(|task| task.id).collect();
+                    task_ids.sort_by(|a, b| {
+                        let task_a = scheduler.get_task(*a).unwrap();
+                        let task_b = scheduler.get_task(*b).unwrap();
+                        task_a.due_date.cmp(&task_b.due_date)
+                    });
+
+                    if let Some(selected_id) = app_state.selected_task_id {
+                        if let Some(pos) = task_ids.iter().position(|id| *id == selected_id) {
+                            if pos > 0 {
+                                app_state.selected_task_id = Some(task_ids[pos - 1]);
+                            }
+                        }
+                    } else if !task_ids.is_empty() {
+                        app_state.selected_task_id = Some(task_ids[0]);
+                    }
+                }
+            }
+        }
+        KeyCode::Down => {
+            // Navigate tasks down
+            if let Some(ref task_scheduler) = app_state.task_scheduler {
+                if let Ok(scheduler) = task_scheduler.lock() {
+                    let tasks = scheduler.get_all_tasks();
+                    if tasks.is_empty() {
+                        return Ok(());
+                    }
+
+                    // Sort tasks by due date
+                    let mut task_ids: Vec<u32> = tasks.iter().map(|task| task.id).collect();
+                    task_ids.sort_by(|a, b| {
+                        let task_a = scheduler.get_task(*a).unwrap();
+                        let task_b = scheduler.get_task(*b).unwrap();
+                        task_a.due_date.cmp(&task_b.due_date)
+                    });
+
+                    if let Some(selected_id) = app_state.selected_task_id {
+                        if let Some(pos) = task_ids.iter().position(|id| *id == selected_id) {
+                            if pos < task_ids.len() - 1 {
+                                app_state.selected_task_id = Some(task_ids[pos + 1]);
+                            }
+                        }
+                    } else if !task_ids.is_empty() {
+                        app_state.selected_task_id = Some(task_ids[0]);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+// Helper function to parse due date
+fn parse_due_date(date_str: &str) -> Option<i64> {
+    // Try to parse as YYYY-MM-DD
+    if let Ok(date) =
+        NaiveDateTime::parse_from_str(&format!("{} 00:00:00", date_str), "%Y-%m-%d %H:%M:%S")
+    {
+        return Some(date.timestamp());
+    }
+
+    None
+}
+
+fn draw_task_scheduler_menu<B: Backend>(f: &mut Frame<B>) {
+    let text_color = get_text_color();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(100)].as_ref())
+        .split(f.size());
+
+    let text = vec![
+        Spans::from(Span::raw("a. Add Task")),
+        Spans::from(Span::raw("v. View Tasks")),
+        Spans::from(Span::raw("e. Email Configuration")),
+        Spans::from(Span::raw("Esc. Back to Main Menu")),
+        Spans::from(Span::raw("Press 'q' to quit")),
+    ];
+    let paragraph = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title("Task Scheduler")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(text_color));
+    f.render_widget(paragraph, chunks[0]);
+}
+
+fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(10),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let highlight_style = Style::default()
+        .fg(Color::Yellow)
+        .bg(Color::DarkGray)
+        .add_modifier(Modifier::BOLD);
+    let normal_style = Style::default().fg(Color::White);
+
+    let priority_display = format!("{:?}", app_state.task_priority);
+
+    let fields = [
+        ("Title: ", &app_state.task_title, app_state.input_field == 0),
+        (
+            "Description: ",
+            &app_state.task_description,
+            app_state.input_field == 1,
+        ),
+        (
+            "Due Date (YYYY-MM-DD): ",
+            &app_state.task_due_date,
+            app_state.input_field == 2,
+        ),
+        (
+            "Tags (comma-separated): ",
+            &app_state.task_tags,
+            app_state.input_field == 3,
+        ),
+    ];
+
+    for (i, (label, value, is_selected)) in fields.iter().enumerate() {
+        let text = Spans::from(vec![
+            Span::raw(*label),
+            Span::styled(
+                (*value).clone(),
+                if *is_selected {
+                    highlight_style
+                } else {
+                    normal_style
+                },
+            ),
+        ]);
+
+        // Highlight the entire block if this field is selected
+        let block_style = if *is_selected {
+            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+        } else {
+            Style::default()
+        };
+
+        let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+        f.render_widget(paragraph, layout[i + 1]);
+    }
+
+    // Similarly update your priority display with clearer highlighting
+    // Add a blinking cursor or indicator for the active field
+    if app_state.input_field < 4 {
+        let field_layout = layout[app_state.input_field + 1];
+        let cursor_x =
+            fields[app_state.input_field].0.len() + fields[app_state.input_field].1.len();
+
+        // You could render a cursor indicator here
+        if cursor_x < field_layout.width as usize {
+            let cursor_rect = Rect::new(
+                field_layout.x + cursor_x as u16 + 1, // +1 for border
+                field_layout.y + 1,                   // +1 for border
+                1,
+                1,
+            );
+            f.render_widget(
+                Block::default().style(Style::default().bg(Color::White)),
+                cursor_rect,
+            );
+        }
+    }
+
+    // Priority field for the add task screen
+    let priority_text = Spans::from(vec![
+        Span::raw("Priority: "),
+        Span::styled(
+            priority_display,
+            Style::default().fg(get_priority_color(&app_state.task_priority)),
+        ),
+        Span::raw(" (Use ↑↓ to change)"),
+    ]);
+    let priority_paragraph =
+        Paragraph::new(priority_text).block(Block::default().borders(Borders::ALL));
+    f.render_widget(priority_paragraph, layout[5]);
+
+    // Instructions
+    let instructions = Paragraph::new("Press 'Enter' to Save, 'Esc' to Cancel")
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(instructions, layout[6]);
+
+    // Display status message if present
+    if let Some(ref msg) = app_state.status_message {
+        let status_block = Paragraph::new(msg.message.clone())
+            .style(Style::default().fg(match msg.message_type {
+                StatusMessageType::Info => Color::Blue,
+                StatusMessageType::Success => Color::Green,
+                StatusMessageType::Warning => Color::Yellow,
+                StatusMessageType::Error => Color::Red,
+            }))
+            .block(Block::default().borders(Borders::ALL).title("Status"));
+
+        // Create a centered popup for the status message
+        let area = f.size();
+        let status_width = 60.min(area.width.saturating_sub(4));
+        let status_height = 5.min(area.height.saturating_sub(4));
+
+        let status_area = Rect::new(
+            ((area.width - status_width) / 2).max(0),
+            ((area.height - status_height) / 2).max(0),
+            status_width,
+            status_height,
+        );
+
+        f.render_widget(Clear, status_area); // Clear the area
+        f.render_widget(status_block, status_area);
+    }
+}
+
+fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+    let text_color = get_text_color();
+
+    // Create layout with a status bar
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Task table
+            Constraint::Length(3), // Task details
+            Constraint::Length(1), // Status message
+            Constraint::Length(3), // Controls
+        ])
+        .split(f.size());
+
+    // Title
+    let title = Paragraph::new(vec![
+        Spans::from(vec![Span::styled(
+            "TASK MANAGER",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Spans::from(vec![Span::raw(
+            "Press ↑↓ to navigate, 'r' to add reminder, 'c' to complete, 'd' to delete, 'Esc' to go back",
+        )]),
+    ])
+    .block(Block::default().borders(Borders::BOTTOM));
+
+    f.render_widget(title, chunks[0]);
+
+    // Task list
+    if let Some(ref task_scheduler) = app_state.task_scheduler {
+        if let Ok(scheduler) = task_scheduler.lock() {
+            let all_tasks = scheduler.get_all_tasks();
+
+            if all_tasks.is_empty() {
+                let no_tasks = Paragraph::new("No tasks found. Press 'a' to add a new task.")
+                    .style(Style::default().fg(text_color))
+                    .block(Block::default().borders(Borders::ALL).title("Tasks"));
+                f.render_widget(no_tasks, chunks[1]);
+            } else {
+                // Sort tasks by due date
+                let mut sorted_tasks = all_tasks.clone();
+                sorted_tasks.sort_by(|a, b| a.due_date.cmp(&b.due_date));
+
+                // Table headers
+                let header_cells = vec![
+                    Cell::from("ID").style(Style::default().fg(Color::Yellow)),
+                    Cell::from("Title").style(Style::default().fg(Color::Yellow)),
+                    Cell::from("Due Date").style(Style::default().fg(Color::Yellow)),
+                    Cell::from("Priority").style(Style::default().fg(Color::Yellow)),
+                    Cell::from("Status").style(Style::default().fg(Color::Yellow)),
+                    Cell::from("Reminders").style(Style::default().fg(Color::Yellow)),
+                ];
+
+                let header = Row::new(header_cells)
+                    .style(Style::default().add_modifier(Modifier::BOLD))
+                    .height(1);
+
+                // Task rows
+                let rows = sorted_tasks.iter().map(|task| {
+                    let id = task.id.to_string();
+                    let title = task.title.clone();
+                    let due_date = task_scheduler::format_timestamp(task.due_date);
+                    let priority = format!("{:?}", task.priority);
+                    let status = format!("{:?}", task.status);
+                    let reminders = task.reminders.len().to_string();
+
+                    // Calculate color based on due date
+                    let now = Utc::now().timestamp();
+                    let row_color = if task.status == TaskStatus::Completed {
+                        Color::DarkGray
+                    } else if task.due_date < now {
+                        Color::Red
+                    } else if task.due_date - now < 86400 {
+                        // Within 24 hours
+                        Color::Yellow
+                    } else {
+                        text_color
+                    };
+
+                    Row::new(vec![
+                        Cell::from(id),
+                        Cell::from(title),
+                        Cell::from(due_date),
+                        Cell::from(priority)
+                            .style(Style::default().fg(get_priority_color(&task.priority))),
+                        Cell::from(status)
+                            .style(Style::default().fg(get_status_color(&task.status))),
+                        Cell::from(reminders),
+                    ])
+                    .style(Style::default().fg(row_color))
+                });
+
+                // Create a stateful table
+                let mut state = tui::widgets::TableState::default();
+
+                // Find the selected task index
+                let selected_index = if let Some(selected_id) = app_state.selected_task_id {
+                    sorted_tasks.iter().position(|task| task.id == selected_id)
+                } else {
+                    None
+                };
+
+                // Set the selected index
+                if let Some(idx) = selected_index {
+                    state.select(Some(idx));
+                } else if !sorted_tasks.is_empty() {
+                    state.select(Some(0));
+                }
+
+                let table = Table::new(rows)
+                    .header(header)
+                    .block(Block::default().title("Tasks").borders(Borders::ALL))
+                    .widths(&[
+                        Constraint::Length(5),
+                        Constraint::Percentage(35),
+                        Constraint::Length(19),
+                        Constraint::Length(10),
+                        Constraint::Length(12),
+                        Constraint::Length(10),
+                    ])
+                    .column_spacing(1)
+                    .highlight_style(
+                        Style::default()
+                            .bg(Color::DarkGray)
+                            .add_modifier(Modifier::BOLD),
+                    );
+
+                // Render stateful table
+                f.render_stateful_widget(table, chunks[1], &mut state);
+
+                // Show task details if a task is selected
+                if let Some(selected_id) = app_state.selected_task_id {
+                    if let Some(task) = scheduler.get_task(selected_id) {
+                        let details = vec![
+                            Spans::from(vec![
+                                Span::styled(
+                                    "Title: ",
+                                    Style::default().add_modifier(Modifier::BOLD),
+                                ),
+                                Span::raw(&task.title),
+                            ]),
+                            Spans::from(vec![
+                                Span::styled(
+                                    "Description: ",
+                                    Style::default().add_modifier(Modifier::BOLD),
+                                ),
+                                Span::raw(&task.description),
+                            ]),
+                            Spans::from(vec![
+                                Span::styled(
+                                    "Tags: ",
+                                    Style::default().add_modifier(Modifier::BOLD),
+                                ),
+                                Span::raw(task.tags.join(", ")),
+                            ]),
+                        ];
+
+                        let details_block = Paragraph::new(details)
+                            .block(Block::default().title("Task Details").borders(Borders::ALL));
+                        f.render_widget(details_block, chunks[2]);
+                    }
+                }
+            }
+        }
+    } else {
+        // If no scheduler is available
+        let no_data = Paragraph::new("Task scheduler not initialized")
+            .style(Style::default().fg(text_color))
+            .block(Block::default().borders(Borders::ALL));
+
+        f.render_widget(no_data, chunks[1]);
+    }
+
+    // Status message
+    if let Some(ref status) = app_state.status_message {
+        let message_color = match status.message_type {
+            StatusMessageType::Info => Color::Blue,
+            StatusMessageType::Success => Color::Green,
+            StatusMessageType::Warning => Color::Yellow,
+            StatusMessageType::Error => Color::Red,
+        };
+
+        let status_text = Spans::from(vec![
+            Span::styled("◆ ", Style::default().fg(message_color)),
+            Span::styled(&status.message, Style::default().fg(message_color)),
+        ]);
+
+        let status_bar = Paragraph::new(status_text);
+        f.render_widget(status_bar, chunks[3]);
+    }
+
+    // Controls
+    let controls = Paragraph::new(vec![Spans::from(vec![Span::raw(
+        "Actions: [r]Add Reminder [c]Complete [d]Delete | [↑↓]Navigate",
+    )])])
+    .block(Block::default().borders(Borders::TOP));
+
+    f.render_widget(controls, chunks[4]);
+}
+
+fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(10),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let highlight_style = Style::default()
+        .fg(Color::Yellow)
+        .bg(Color::DarkGray) // More visible background
+        .add_modifier(Modifier::BOLD);
+    let normal_style = Style::default().fg(Color::White);
+
+    let fields = [
+        (
+            "Email Address: ",
+            &app_state.email_address,
+            app_state.email_config_field == 0,
+        ),
+        (
+            "SMTP Server: ",
+            &app_state.email_smtp_server,
+            app_state.email_config_field == 1,
+        ),
+        (
+            "SMTP Port: ",
+            &app_state.email_smtp_port,
+            app_state.email_config_field == 2,
+        ),
+        (
+            "Username: ",
+            &app_state.email_username,
+            app_state.email_config_field == 3,
+        ),
+        (
+            "Password: ",
+            &app_state.email_password,
+            app_state.email_config_field == 4,
+        ),
+    ];
+
+    // Title
+    let title = Paragraph::new("Email Configuration")
+        .block(Block::default().borders(Borders::ALL))
+        .style(Style::default().add_modifier(Modifier::BOLD));
+    f.render_widget(title, layout[0]);
+
+    for (i, (label, value, is_selected)) in fields.iter().enumerate() {
+        let display_value = if i == 4 && !value.is_empty() {
+            "*".repeat(value.len()) // Mask password
+        } else {
+            value.to_string()
+        };
+
+        let text = Spans::from(vec![
+            Span::raw(*label),
+            Span::styled(
+                display_value,
+                if *is_selected {
+                    highlight_style
+                } else {
+                    normal_style
+                },
+            ),
+        ]);
+
+        // Highlight the entire block if this field is selected
+        let block_style = if *is_selected {
+            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+        } else {
+            Style::default()
+        };
+
+        let paragraph =
+            Paragraph::new(text).block(Block::default().borders(Borders::ALL).style(block_style));
+
+        f.render_widget(paragraph, layout[i + 1]);
+    }
+
+    // Add instructions
+    let instructions = Paragraph::new(vec![
+        Spans::from("Press 'Enter' to Save, 'Esc' to Cancel"),
+        Spans::from("Press 't' to Test Configuration"),
+    ])
+    .block(Block::default().borders(Borders::ALL));
+
+    f.render_widget(instructions, layout[6]);
+
+    // Optional: Add a blinking cursor for better visual feedback
+    if app_state.email_config_field < 5 {
+        let field_layout = layout[app_state.email_config_field + 1];
+        let label_len = fields[app_state.email_config_field].0.len();
+        let value_len = if app_state.email_config_field == 4 {
+            // For password field
+            "*".repeat(fields[app_state.email_config_field].1.len())
+                .len()
+        } else {
+            fields[app_state.email_config_field].1.len()
+        };
+
+        // You can add a blinking cursor here if needed
+    }
+}
+
+fn draw_add_reminder<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(25),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let highlight_style = Style::default().fg(Color::Yellow).bg(Color::Blue);
+    let normal_style = Style::default().fg(Color::White);
+
+    // Title with selected task info
+    let mut title_text = "Add Reminder".to_string();
+    if let Some(task_id) = app_state.selected_task_id {
+        if let Some(ref task_scheduler) = app_state.task_scheduler {
+            if let Ok(scheduler) = task_scheduler.lock() {
+                if let Some(task) = scheduler.get_task(task_id) {
+                    title_text = format!("Add Reminder for: {}", task.title);
+                }
+            }
+        }
+    }
+
+    let title = Paragraph::new(title_text)
+        .block(Block::default().borders(Borders::ALL))
+        .style(Style::default().add_modifier(Modifier::BOLD));
+    f.render_widget(title, layout[0]);
+
+    let reminder_type_display = format!("{:?}", app_state.reminder_type);
+
+    let fields = [
+        (
+            "Date (YYYY-MM-DD): ",
+            &app_state.reminder_date,
+            app_state.input_field == 0,
+        ),
+        (
+            "Time (HH:MM): ",
+            &app_state.reminder_time,
+            app_state.input_field == 1,
+        ),
+    ];
+
+    for (i, (label, value, is_selected)) in fields.iter().enumerate() {
+        let text = Spans::from(vec![
+            Span::raw(*label),
+            Span::styled(
+                (*value).clone(),
+                if *is_selected {
+                    highlight_style
+                } else {
+                    normal_style
+                },
+            ),
+        ]);
+        let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+        f.render_widget(paragraph, layout[i + 1]);
+    }
+
+    // Reminder type selection
+    let reminder_type_text = Spans::from(vec![
+        Span::raw("Reminder Type: "),
+        Span::styled(reminder_type_display, Style::default().fg(Color::Cyan)),
+        Span::raw(" (Use ↑↓ to change)"),
+    ]);
+    let reminder_type_paragraph =
+        Paragraph::new(reminder_type_text).block(Block::default().borders(Borders::ALL));
+    f.render_widget(reminder_type_paragraph, layout[3]);
+
+    // Instructions
+    let instructions = Paragraph::new("Press 'Enter' to Save, 'Esc' to Cancel")
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(instructions, layout[4]);
+}
+
+// Helper function for priority colors
+fn get_priority_color(priority: &TaskPriority) -> Color {
+    match priority {
+        TaskPriority::Low => Color::Blue,
+        TaskPriority::Medium => Color::Green,
+        TaskPriority::High => Color::Yellow,
+        TaskPriority::Urgent => Color::Red,
+    }
+}
+
+// Helper function for status colors
+fn get_status_color(status: &TaskStatus) -> Color {
+    match status {
+        TaskStatus::Pending => Color::Yellow,
+        TaskStatus::InProgress => Color::Blue,
+        TaskStatus::Completed => Color::Green,
+        TaskStatus::Cancelled => Color::Gray,
+    }
+}
+
 fn handle_speed_test_running_mode(
     app_state: &mut AppState,
     code: KeyCode,
@@ -1037,6 +2230,7 @@ fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
         Spans::from(Span::raw("1. Password Manager")),
         Spans::from(Span::raw("2. Network Tools")),
         Spans::from(Span::raw("3. System Utilities")),
+        Spans::from(Span::raw("4. Task Manager")),
         Spans::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
