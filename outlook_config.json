@@ -1,0 +1,7 @@
+{
+  "email": "your_email@outlook.com",
+  "smtp_server": "smtp-mail.outlook.com",
+  "smtp_port": 587,
+  "username": "your_email@outlook.com",
+  "password": "your_outlook_password"
+}
