@@ -61,7 +61,7 @@ The application uses a Terminal User Interface (TUI) built with the `tui` and `c
 
 ```bash
 # Clone the repository
-git clone https://github.com/username/toolbox.git
+git clone https://github.com/lukewaehner/toolbox.git
 cd toolbox
 
 # Build the application
@@ -75,8 +75,9 @@ cargo run --release
 
 1. Create a `.env` file in the project root with:
    ```
-   ENCRYPTION_KEY=your32characterencryptionkeyhere
+   ENCRYPTION_KEY={secret_key_here}
    ```
+- Note: This must be 32 characters long
 2. Email configuration can be set up within the application
 
 ## Usage
