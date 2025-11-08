@@ -1,13 +1,32 @@
+//! Network Tools Module
+//!
+//! This module provides network diagnostic utilities including:
+//! - Ping functionality for network connectivity testing
+//! - Download speed testing with multiple server options
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use network_tools::{ping, efficient_speed_test};
+//!
+//! // Ping a host
+//! let result = ping("8.8.8.8").expect("Ping failed");
+//! println!("Average RTT: {} ms", result.round_trip_avg);
+//!
+//! // Test download speed
+//! let speed = efficient_speed_test().expect("Speed test failed");
+//! println!("Download speed: {} Mbps", speed.speed / 1_000_000.0);
+//! ```
+
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-// Keep existing PingResult structure
+/// Results from a ping network test
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PingResult {
-    // ... existing code ...
     packets_transmitted: u32,
     packets_received: u32,
     packet_loss: f32,
@@ -18,9 +37,25 @@ pub struct PingResult {
     round_trip_mdev: f32,
 }
 
-// Existing ping function
+/// Performs a ping test to a specified address
+///
+/// Sends 4 ICMP echo request packets to the target address and returns statistics.
+///
+/// # Arguments
+///
+/// * `address` - The IP address or hostname to ping
+///
+/// # Returns
+///
+/// Returns a `PingResult` containing packet transmission statistics and RTT measurements.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The ping command fails to execute
+/// - The output cannot be parsed
+/// - The target is unreachable
 pub fn ping(address: &str) -> Result<PingResult, Box<dyn std::error::Error>> {
-    // ... existing code ...
     let output = Command::new("ping")
         .arg("-c")
         .arg("4") // Send 4 packets
@@ -43,9 +78,23 @@ pub fn ping(address: &str) -> Result<PingResult, Box<dyn std::error::Error>> {
     Ok(parsed_result)
 }
 
-// Existing parse_ping_output function
+/// Parses the output from the ping command
+///
+/// Extracts packet statistics and RTT measurements from ping command output
+/// using regular expressions.
+///
+/// # Arguments
+///
+/// * `output` - The stdout from the ping command
+///
+/// # Returns
+///
+/// Returns a `PingResult` with parsed statistics.
+///
+/// # Errors
+///
+/// Returns an error if the output format doesn't match expected patterns.
 fn parse_ping_output(output: &str) -> Result<PingResult, Box<dyn std::error::Error>> {
-    // ... existing code ...
     use regex::Regex;
 
     let packets_regex = Regex::new(
