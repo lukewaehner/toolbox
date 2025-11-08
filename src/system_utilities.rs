@@ -1,68 +1,134 @@
+//! System Utilities Module
+//!
+//! This module provides real-time system monitoring and process management capabilities.
+//!
+//! # Features
+//!
+//! - CPU usage monitoring (global and per-core)
+//! - Memory and swap usage tracking
+//! - Disk space monitoring for all mounted filesystems
+//! - Process listing with detailed information
+//! - Process management (view, sort, terminate)
+//! - Historical data tracking for charting
+//!
+//! # Example
+//!
+//! ```no_run
+//! use system_utilities::SystemMonitor;
+//!
+//! let mut monitor = SystemMonitor::new();
+//! monitor.refresh();
+//! let snapshot = monitor.snapshot();
+//!
+//! println!("CPU Usage: {:.1}%", snapshot.cpu_usage);
+//! println!("Memory: {} / {} bytes", snapshot.memory_used, snapshot.memory_total);
+//! ```
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use sysinfo::{CpuExt, DiskExt, PidExt, ProcessExt, System, SystemExt};
 
-// Snapshot of system resources for display in the UI
+/// Snapshot of system resources at a point in time
+///
+/// This structure captures a complete snapshot of system state including
+/// CPU, memory, disk, and process information for display in the UI.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SystemSnapshot {
-    // CPU stats
-    pub cpu_usage: f32,            // Global CPU usage percentage
-    pub cpu_cores_usage: Vec<f32>, // Per-core CPU usage percentages
+    /// Global CPU usage percentage (0-100)
+    pub cpu_usage: f32,
+    /// Per-core CPU usage percentages
+    pub cpu_cores_usage: Vec<f32>,
+    /// Number of CPU cores
     pub cpu_cores_count: usize,
+    /// CPU model name
     pub cpu_name: String,
 
-    // Memory stats
+    /// Used memory in bytes
     pub memory_used: u64,
+    /// Total memory in bytes
     pub memory_total: u64,
+    /// Memory usage as percentage (0-100)
     pub memory_usage_percent: f32,
+    /// Used swap space in bytes
     pub swap_used: u64,
+    /// Total swap space in bytes
     pub swap_total: u64,
+    /// Swap usage as percentage (0-100)
     pub swap_usage_percent: f32,
 
-    // Disk stats
+    /// Information about all mounted disks
     pub disks: Vec<DiskInfo>,
 
-    // Process stats (top N processes by CPU or memory usage)
+    /// Top processes by CPU or memory usage
     pub top_processes: Vec<ProcessInfo>,
 
-    // Capture timestamp
+    /// Unix timestamp when snapshot was captured
     pub timestamp: u64,
 }
 
+/// Information about a disk/filesystem
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DiskInfo {
+    /// Device name
     pub name: String,
+    /// Mount point path
     pub mount_point: String,
+    /// Available space in bytes
     pub available_space: u64,
+    /// Total space in bytes
     pub total_space: u64,
+    /// Usage percentage (0-100)
     pub usage_percent: f32,
+    /// Whether the disk is removable
     pub is_removable: bool,
+    /// Filesystem type (e.g., "ext4", "ntfs")
     pub filesystem_type: String,
 }
 
+/// Information about a running process
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ProcessInfo {
+    /// Process ID
     pub pid: u32,
+    /// Process name
     pub name: String,
+    /// CPU usage percentage
     pub cpu_usage: f32,
+    /// Memory usage in bytes
     pub memory_usage: u64,
+    /// Memory usage as percentage of total memory
     pub memory_usage_percent: f32,
+    /// Disk usage in bytes
     pub disk_usage: u64,
+    /// Process start time (Unix timestamp)
     pub start_time: u64,
+    /// Process runtime in seconds
     pub run_time: u64,
+    /// User running the process
     pub user: String,
 }
 
-// Historical data for charting
+/// Historical system data for charting
+///
+/// Maintains a rolling window of historical CPU and memory usage
+/// for trend visualization.
 #[derive(Default, Debug)]
 pub struct SystemHistory {
-    pub cpu_history: Vec<(u64, f32)>,    // (timestamp, usage)
-    pub memory_history: Vec<(u64, f32)>, // (timestamp, usage percent)
+    /// CPU usage history as (timestamp, usage_percent) tuples
+    pub cpu_history: Vec<(u64, f32)>,
+    /// Memory usage history as (timestamp, usage_percent) tuples
+    pub memory_history: Vec<(u64, f32)>,
+    /// Maximum number of historical data points to keep
     pub history_max_points: usize,
 }
 
 impl SystemHistory {
+    /// Creates a new system history tracker
+    ///
+    /// # Arguments
+    ///
+    /// * `max_points` - Maximum number of historical data points to keep
     pub fn new(max_points: usize) -> Self {
         Self {
             cpu_history: Vec::with_capacity(max_points),
@@ -71,6 +137,14 @@ impl SystemHistory {
         }
     }
 
+    /// Adds a snapshot to the historical data
+    ///
+    /// Maintains a rolling window by removing oldest data points when
+    /// the maximum is reached.
+    ///
+    /// # Arguments
+    ///
+    /// * `snapshot` - The system snapshot to add to history
     pub fn add_snapshot(&mut self, snapshot: &SystemSnapshot) {
         // Add CPU data point
         self.cpu_history
@@ -88,17 +162,40 @@ impl SystemHistory {
     }
 }
 
-// Main system monitor that will collect and store data
+/// System monitor for real-time resource tracking
+///
+/// Collects and maintains current and historical system resource information
+/// including CPU, memory, disk, and process data.
 #[derive(Debug)]
 pub struct SystemMonitor {
+    /// Underlying sysinfo System instance
     system: System,
+    /// Current system state snapshot
     snapshot: SystemSnapshot,
+    /// Historical data for trending
     history: SystemHistory,
+    /// Minimum time between refreshes
     refresh_interval: Duration,
+    /// Time of last refresh
     last_update: std::time::Instant,
 }
 
 impl SystemMonitor {
+    /// Creates a new system monitor instance
+    ///
+    /// # Arguments
+    ///
+    /// * `history_points` - Number of historical data points to maintain
+    /// * `refresh_interval` - Minimum duration between data refreshes
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    /// use system_utilities::SystemMonitor;
+    ///
+    /// let monitor = SystemMonitor::new(100, Duration::from_secs(2));
+    /// ```
     pub fn new(history_points: usize, refresh_interval: Duration) -> Self {
         let mut system = System::new_all();
         system.refresh_all();
@@ -136,7 +233,11 @@ impl SystemMonitor {
         monitor
     }
 
-    // Refresh system data if interval has passed
+    /// Refreshes system data if the refresh interval has elapsed
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if data was refreshed, `false` otherwise
     pub fn refresh_if_needed(&mut self) -> bool {
         if self.last_update.elapsed() >= self.refresh_interval {
             self.refresh();
@@ -146,7 +247,10 @@ impl SystemMonitor {
         }
     }
 
-    // Force refresh of system data
+    /// Forces an immediate refresh of system data
+    ///
+    /// Updates CPU, memory, disk, and process information regardless
+    /// of the refresh interval.
     pub fn refresh(&mut self) {
         // Update the timestamp
         let now = std::time::SystemTime::now()

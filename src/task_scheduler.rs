@@ -1,4 +1,41 @@
-// task_scheduler.rs
+//! Task Scheduler Module
+//!
+//! This module provides comprehensive task management and reminder functionality
+//! with support for multiple notification channels.
+//!
+//! # Features
+//!
+//! - Task creation with priority levels and due dates
+//! - Multiple reminder types: Email, Desktop Notification, or Both
+//! - Tag-based task organization
+//! - Persistent storage with JSON serialization
+//! - Background thread for checking and sending reminders
+//! - Email support via SMTP
+//! - Desktop notifications via notify-rust
+//!
+//! # Example
+//!
+//! ```no_run
+//! use task_scheduler::{TaskScheduler, Task, TaskPriority, ReminderType};
+//! use chrono::Utc;
+//!
+//! let mut scheduler = TaskScheduler::new("tasks.json");
+//!
+//! let task = Task::new(
+//!     0,
+//!     "Complete project".to_string(),
+//!     "Finish the Rust project".to_string(),
+//!     Utc::now().timestamp() + 86400,  // Due in 24 hours
+//!     TaskPriority::High,
+//!     vec!["work".to_string()],
+//! );
+//!
+//! let task_id = scheduler.add_task(task).unwrap();
+//!
+//! // Add email reminder 1 hour before
+//! scheduler.add_reminder(task_id, Utc::now().timestamp() + 82800, ReminderType::Email);
+//! ```
+
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use lettre::message::{header, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
@@ -13,59 +50,103 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+/// Priority levels for tasks
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TaskPriority {
+    /// Low priority task
     Low,
+    /// Medium priority task (default)
     Medium,
+    /// High priority task
     High,
+    /// Urgent task requiring immediate attention
     Urgent,
 }
 
+/// Task status states
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TaskStatus {
+    /// Task is pending and not started
     Pending,
+    /// Task is currently in progress
     InProgress,
+    /// Task has been completed
     Completed,
+    /// Task has been cancelled
     Cancelled,
 }
 
+/// Types of reminder notifications
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ReminderType {
+    /// Send reminder via email
     Email,
+    /// Send reminder via desktop notification
     Notification,
+    /// Send reminder via both email and desktop notification
     Both,
 }
 
+/// A reminder for a task
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reminder {
-    pub reminder_time: i64, // Unix timestamp
+    /// Unix timestamp when reminder should trigger
+    pub reminder_time: i64,
+    /// Type of reminder to send
     pub reminder_type: ReminderType,
+    /// Whether the reminder has been sent
     pub sent: bool,
 }
 
+/// A scheduled task
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
+    /// Unique task identifier
     pub id: u32,
+    /// Task title/summary
     pub title: String,
+    /// Detailed task description
     pub description: String,
-    pub due_date: i64, // Unix timestamp
+    /// Task due date (Unix timestamp)
+    pub due_date: i64,
+    /// Task priority level
     pub priority: TaskPriority,
+    /// Current task status
     pub status: TaskStatus,
-    pub created_at: i64, // Unix timestamp
+    /// Task creation time (Unix timestamp)
+    pub created_at: i64,
+    /// List of reminders for this task
     pub reminders: Vec<Reminder>,
+    /// Tags for categorizing/filtering tasks
     pub tags: Vec<String>,
 }
 
+/// Email configuration for sending reminder emails
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailConfig {
+    /// Sender email address
     pub email: String,
+    /// SMTP server hostname
     pub smtp_server: String,
+    /// SMTP server port (usually 587 or 465)
     pub smtp_port: u16,
+    /// SMTP username
     pub username: String,
+    /// SMTP password
     pub password: String,
 }
 
 impl Task {
+    /// Creates a new task
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique task identifier
+    /// * `title` - Task title
+    /// * `description` - Detailed description
+    /// * `due_date` - Unix timestamp for due date
+    /// * `priority` - Task priority level
+    /// * `tags` - List of tags for categorization
     pub fn new(
         id: u32,
         title: String,
@@ -89,6 +170,12 @@ impl Task {
         }
     }
 
+    /// Adds a reminder to this task
+    ///
+    /// # Arguments
+    ///
+    /// * `reminder_time` - Unix timestamp when to send the reminder
+    /// * `reminder_type` - Type of reminder (Email, Notification, or Both)
     pub fn add_reminder(&mut self, reminder_time: i64, reminder_type: ReminderType) {
         self.reminders.push(Reminder {
             reminder_time,
