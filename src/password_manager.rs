@@ -1,3 +1,30 @@
+//! Password Manager Module
+//!
+//! This module provides secure password storage and management functionality using AES-256 encryption.
+//!
+//! # Security
+//!
+//! - Passwords are encrypted using AES-256 in CBC mode
+//! - Each encryption operation uses a random initialization vector (IV)
+//! - The encryption key is loaded from the `ENCRYPTION_KEY` environment variable
+//! - The key must be exactly 32 bytes (256 bits) long
+//! - Encrypted data is stored in `passwords.json`
+//!
+//! # Example
+//!
+//! ```no_run
+//! use password_manager::{PasswordEntry, save_password, retrieve_password};
+//!
+//! let entry = PasswordEntry {
+//!     service: "example.com".to_string(),
+//!     username: "user@example.com".to_string(),
+//!     password: "secret123".to_string(),
+//! };
+//!
+//! save_password(&entry).expect("Failed to save password");
+//! let entries = retrieve_password().expect("Failed to retrieve passwords");
+//! ```
+
 use aes::Aes256;
 use base64::{engine::general_purpose, Engine as _};
 use cbc::{Decryptor, Encryptor};
@@ -9,21 +36,60 @@ use std::{fs, io};
 use dotenv::dotenv;
 use std::env;
 
+/// Path to the encrypted password storage file
 const FILE_PATH: &str = "passwords.json";
 
+/// Represents a single password entry
+///
+/// Contains the service name, username, and password for a login credential.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PasswordEntry {
+    /// The name of the service (e.g., "gmail.com", "GitHub")
     pub service: String,
+    /// The username or email address
     pub username: String,
+    /// The password for this service
     pub password: String,
 }
 
-// errored here
+/// Retrieves all stored password entries
+///
+/// Decrypts and deserializes all password entries from the encrypted storage file.
+///
+/// # Returns
+///
+/// Returns a vector of `PasswordEntry` objects on success.
+///
+/// # Errors
+///
+/// Returns an `io::Error` if:
+/// - The file cannot be read
+/// - Decryption fails (e.g., wrong encryption key)
+/// - JSON deserialization fails
 pub fn retrieve_password() -> io::Result<Vec<PasswordEntry>> {
     let entries = load_passwords()?;
     Ok(entries)
 }
 
+/// Saves a password entry to encrypted storage
+///
+/// Adds a new password entry to the existing list and saves it to the encrypted file.
+///
+/// # Arguments
+///
+/// * `entry` - The password entry to save
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an `io::Error` if:
+/// - Loading existing passwords fails
+/// - JSON serialization fails
+/// - Encryption fails
+/// - Writing to the file fails
 pub fn save_password(entry: &PasswordEntry) -> io::Result<()> {
     let mut entries = load_passwords().or_else(|e| {
         println!("Error loading existing passwords: {}", e);
@@ -31,7 +97,7 @@ pub fn save_password(entry: &PasswordEntry) -> io::Result<()> {
         Ok::<Vec<PasswordEntry>, io::Error>(Vec::new())
     })?;
 
-    entries.push(entry.clone()); // Clone the entry to own it
+    entries.push(entry.clone());
     let json = serde_json::to_string(&entries).map_err(|_| {
         io::Error::new(
             io::ErrorKind::Other,
@@ -46,6 +112,17 @@ pub fn save_password(entry: &PasswordEntry) -> io::Result<()> {
     Ok(())
 }
 
+/// Loads and decrypts password entries from storage
+///
+/// Internal function to load the encrypted password file and decrypt its contents.
+///
+/// # Returns
+///
+/// Returns a vector of `PasswordEntry` objects, or an empty vector if the file doesn't exist.
+///
+/// # Errors
+///
+/// Returns an `io::Error` if decryption or deserialization fails.
 fn load_passwords() -> io::Result<Vec<PasswordEntry>> {
     if let Ok(encrypted) = fs::read(FILE_PATH) {
         if encrypted.is_empty() {
@@ -69,11 +146,26 @@ fn load_passwords() -> io::Result<Vec<PasswordEntry>> {
             }
         }
     } else {
-        // File does not exist
         Ok(Vec::<PasswordEntry>::new())
     }
 }
 
+/// Encrypts data using AES-256-CBC encryption
+///
+/// # Arguments
+///
+/// * `data` - The plaintext data to encrypt
+///
+/// # Returns
+///
+/// Returns a vector containing the IV (first 16 bytes) followed by the ciphertext.
+///
+/// # Errors
+///
+/// Returns an `io::Error` if:
+/// - The encryption key cannot be retrieved
+/// - The key is not 32 bytes long
+/// - Encryption fails
 fn encrypt(data: &[u8]) -> io::Result<Vec<u8>> {
     let key = get_encryption_key().map_err(|_| {
         io::Error::new(io::ErrorKind::InvalidInput, "Failed to get encryption key")

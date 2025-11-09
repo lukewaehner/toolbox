@@ -1,3 +1,20 @@
+//! # Toolbox - A Rust-based System Utility Suite
+//!
+//! Toolbox is a comprehensive terminal-based utility application that provides a collection
+//! of tools for system administration, network diagnostics, password management, and task scheduling.
+//!
+//! ## Features
+//!
+//! - **Password Manager**: Securely store and manage passwords with AES-256 encryption
+//! - **Network Tools**: Ping utility and speed test tools for network diagnostics
+//! - **System Utilities**: Real-time system resource monitoring and process management
+//! - **Task Scheduler**: Create and manage tasks with priorities, due dates, and reminders
+//!
+//! ## Architecture
+//!
+//! The application uses a Terminal User Interface (TUI) built with the `tui` and `crossterm` crates.
+//! It follows an event-driven architecture with different operational modes for each feature.
+
 // Module imports
 mod network_tools;
 mod password_manager;
@@ -36,121 +53,251 @@ use tui::{
     Frame, Terminal,
 };
 
-// Define the PingResult struct
+/// Results from a ping network test
+///
+/// This structure captures the statistics from a ping command execution,
+/// including packet transmission statistics and round-trip time measurements.
 #[derive(serde::Deserialize, Debug)]
 struct PingResult {
+    /// Number of packets transmitted
     packets_transmitted: u32,
+    /// Number of packets successfully received
     packets_received: u32,
+    /// Percentage of packets lost during transmission
     packet_loss: f32,
-    time: Option<u32>, // Change this to Option<u32> if it can be None
+    /// Total time of the ping test in milliseconds
+    time: Option<u32>,
+    /// Minimum round-trip time in milliseconds
     round_trip_min: f32,
+    /// Average round-trip time in milliseconds
     round_trip_avg: f32,
+    /// Maximum round-trip time in milliseconds
     round_trip_max: f32,
+    /// Standard deviation of round-trip time in milliseconds
     round_trip_mdev: f32,
 }
 
+/// Represents the different input modes of the application
+///
+/// The application operates in different modes depending on the current user interaction.
+/// Each mode has specific input handling behavior.
 #[derive(Debug, Clone, PartialEq)]
 enum InputMode {
+    /// Normal navigation mode (menu selection)
     Normal,
+    /// Editing a text field
     Editing,
+    /// Viewing data (read-only mode)
     Viewing,
+    /// Entering an IP address or domain name
     EnterAddress,
+    /// Viewing network test results
     ViewResults,
+    /// Running a speed test (in progress)
     SpeedTestRunning,
+    /// Adding a new task
     AddingTask,
+    /// Editing an existing task
     EditingTask,
+    /// Viewing the task list
     ViewingTasks,
+    /// Adding a reminder to a task
     AddingReminder,
+    /// Configuring email settings
     ConfiguringEmail,
 }
 
+/// Main menu items available in the application
+///
+/// Represents the top-level features accessible from the main menu.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MenuItem {
+    /// Main menu (home screen)
     Main,
+    /// Password manager feature
     PasswordManager,
+    /// Network diagnostic tools
     NetworkTools,
+    /// System monitoring and utilities
     SystemUtilities,
+    /// Task scheduler and reminder system
     TaskScheduler,
 }
 
+/// Different view modes for system monitoring
+///
+/// Controls which aspect of system information is displayed in the system utilities screen.
 #[derive(Debug, Clone, PartialEq)]
 enum SystemViewMode {
+    /// Overview of all system resources
     Overview,
+    /// Detailed CPU usage information
     CpuDetails,
+    /// Detailed memory usage information
     MemoryDetails,
+    /// Detailed disk space information
     DiskDetails,
+    /// List of running processes
     ProcessList,
 }
 
+/// Confirmation dialogue state
+///
+/// Represents pending confirmations that require user input before executing an action.
 #[derive(Debug, Clone, PartialEq)]
 enum ConfirmationDialogue {
+    /// No active confirmation dialogue
     None,
-    KillProcess(u32, String), // Process ID and name
+    /// Confirmation to kill a process (PID, process name)
+    KillProcess(u32, String),
 }
 
+/// Process sorting options
+///
+/// Determines how processes are sorted in the process list view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProcessSortType {
+    /// Sort by Process ID
     Pid,
+    /// Sort by process name
     Name,
+    /// Sort by CPU usage (descending)
     CpuUsage,
+    /// Sort by memory usage (descending)
     MemoryUsage,
+    /// Sort by runtime duration
     Runtime,
 }
 
+/// Central application state structure
+///
+/// This structure holds all the state information for the application, including:
+/// - Current menu and input mode
+/// - User input fields for various features
+/// - Active data and selections
+/// - Background task handles and monitors
+///
+/// The state is passed through the application event loop and updated
+/// based on user interactions.
 #[derive(Debug)]
 struct AppState {
+    /// Currently active menu/feature
     active_menu: MenuItem,
+    /// Current input mode determining how events are handled
     input_mode: InputMode,
+    
+    // Password Manager fields
+    /// Service name for password entry
     service: String,
+    /// Username for password entry
     username: String,
+    /// Password for password entry
     password: String,
+    /// Current field being edited in password manager (0-2)
     input_field: usize,
+    
+    /// Error message to display to the user
     error_message: Option<String>,
+    
+    // Network Tools fields
+    /// IP address or domain name for network operations
     address: String,
+    /// Result text from network operations
     result: Option<String>,
+    /// Currently selected network tool
     selected_tool: Option<String>,
+    /// Channel receiver for asynchronous speed test results
     speed_test_receiver: Option<Receiver<network_tools::SpeedTestResult>>,
+    
+    // System Utilities fields
+    /// System monitor instance for real-time system information
     system_monitor: Option<Arc<Mutex<SystemMonitor>>>,
+    /// Currently selected system utility tool
     selected_system_tool: Option<String>,
+    /// Current view mode in system utilities
     system_view_mode: SystemViewMode,
+    /// Snapshot of current system state
     system_snapshot: Option<system_utilities::SystemSnapshot>,
+    /// Index of selected process in process list
     selected_process_index: usize,
+    /// Active confirmation dialogue
     confirmation_dialogue: ConfirmationDialogue,
+    /// Current status message to display
     status_message: Option<StatusMessage>,
+    /// How processes should be sorted
     process_sort_type: ProcessSortType,
+    /// PID of currently selected process
     selected_process_pid: Option<u32>,
+    
+    // Task Scheduler fields
+    /// Task scheduler instance
     task_scheduler: Option<Arc<Mutex<TaskScheduler>>>,
+    /// Filter string for task list
     task_filter: Option<String>,
+    /// Title for new/editing task
     task_title: String,
+    /// Description for new/editing task
     task_description: String,
+    /// Due date string for task (format: YYYY-MM-DD)
     task_due_date: String,
+    /// Priority level for task
     task_priority: TaskPriority,
+    /// Comma-separated tags for task
     task_tags: String,
+    /// ID of currently selected task
     selected_task_id: Option<u32>,
+    
+    // Email Configuration fields
+    /// Email address for notifications
     email_address: String,
+    /// SMTP server hostname
     email_smtp_server: String,
+    /// SMTP server port (usually 587 or 465)
     email_smtp_port: String,
+    /// Email account username
     email_username: String,
+    /// Email account password
     email_password: String,
+    /// Current field being edited in email config (0-4)
     email_config_field: usize,
+    
+    // Reminder fields
+    /// Date for reminder (format: YYYY-MM-DD)
     reminder_date: String,
+    /// Time for reminder (format: HH:MM)
     reminder_time: String,
+    /// Type of reminder (Email, Notification, Both, etc.)
     reminder_type: ReminderType,
 }
 
+/// Status message displayed to the user
+///
+/// Temporary messages shown at the bottom or top of the screen to provide
+/// feedback about operations.
 #[derive(Debug, Clone)]
 struct StatusMessage {
+    /// The message text
     message: String,
+    /// Type/severity of the message
     message_type: StatusMessageType,
+    /// When the message was created
     created_at: std::time::Instant,
+    /// How long the message should be displayed
     duration: std::time::Duration,
 }
 
+/// Types of status messages
+///
+/// Determines the styling and importance of status messages.
 #[derive(Debug, Clone, PartialEq)]
 enum StatusMessageType {
+    /// Informational message
     Info,
+    /// Success confirmation
     Success,
+    /// Warning message
     Warning,
+    /// Error message
     Error,
 }
 
@@ -198,7 +345,11 @@ impl Default for AppState {
     }
 }
 
-// Struct to handle terminal cleanup
+/// Terminal cleanup handler
+///
+/// This struct ensures proper terminal state restoration when the application exits.
+/// The Drop implementation is called automatically when the struct goes out of scope,
+/// ensuring the terminal is properly restored even in case of panics or errors.
 struct TerminalCleanup;
 
 impl Drop for TerminalCleanup {
@@ -210,7 +361,7 @@ impl Drop for TerminalCleanup {
         if let Err(e) = execute!(
             io::stdout(),
             LeaveAlternateScreen,
-            DisableMouseCapture // Ensure mouse capture is disabled
+            DisableMouseCapture
         ) {
             eprintln!(
                 "Failed to leave alternate screen or disable mouse capture: {:?}",
@@ -220,12 +371,20 @@ impl Drop for TerminalCleanup {
     }
 }
 
+/// Application entry point
+///
+/// Initializes the terminal UI, sets up the task scheduler background thread,
+/// and starts the main application event loop.
+///
+/// # Errors
+///
+/// Returns an error if terminal initialization fails or if signal handling setup fails.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
-    // Craete task scheduler
+    // Create task scheduler instance
     let task_scheduler = Arc::new(Mutex::new(TaskScheduler::new("tasks.json")));
 
     let _scheduler_thread = task_scheduler::run_scheduler_background_thread(task_scheduler.clone());
@@ -253,6 +412,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Main application event loop
+///
+/// Handles the core application logic including:
+/// - Refreshing system monitoring data
+/// - Rendering the UI based on current state
+/// - Processing user input events
+/// - Updating application state
+///
+/// # Arguments
+///
+/// * `terminal` - The terminal instance for rendering
+/// * `running` - Atomic flag to control the main loop
+/// * `app_state` - The application state
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful exit, or an IO error if terminal operations fail
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     running: Arc<AtomicBool>,
