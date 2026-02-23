@@ -18,32 +18,6 @@ pub mod scheduler;
 
 // Re-export main types for convenience
 pub use task::{Task, TaskPriority, TaskStatus, ReminderType, Reminder};
-pub use scheduler::{TaskScheduler, SchedulerError, run_scheduler_background_thread};
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum TaskPriority {
-    Low,
-    Medium,
-    High,
-    Urgent,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum TaskStatus {
-    Pending,
-    InProgress,
-    Completed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ReminderType {
-    Email,
-    Notification,
-    Sms,
-    Both,
-    All, // Email + SMS + Notification
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmsConfig {
