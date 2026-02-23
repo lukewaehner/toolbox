@@ -1,6 +1,6 @@
 use crate::app::prepare_status_message;
 use crate::models::app_state::{AppState, InputMode, StatusMessageType};
-use crate::task_scheduler::{EmailConfig, ReminderType, SmsConfig};
+use crate::modules::task_scheduler::model::{EmailConfig, ReminderType, SmsConfig};
 use chrono::{Local, NaiveDateTime};
 use crossterm::event::KeyCode;
 use std::io;
@@ -103,7 +103,7 @@ pub fn handle_adding_task_mode(
         }
         KeyCode::Up => {
             // Cycle through priorities
-            use crate::task_scheduler::TaskPriority;
+            use crate::modules::task_scheduler::model::TaskPriority;
             app_state.task_priority = match app_state.task_priority {
                 TaskPriority::Low => TaskPriority::Urgent,
                 TaskPriority::Medium => TaskPriority::Low,
@@ -113,7 +113,7 @@ pub fn handle_adding_task_mode(
         }
         KeyCode::Down => {
             // Cycle through priorities
-            use crate::task_scheduler::TaskPriority;
+            use crate::modules::task_scheduler::model::TaskPriority;
             app_state.task_priority = match app_state.task_priority {
                 TaskPriority::Low => TaskPriority::Medium,
                 TaskPriority::Medium => TaskPriority::High,
@@ -154,7 +154,7 @@ pub fn handle_viewing_tasks_mode(
                     if let Ok(mut scheduler) = scheduler.lock() {
                         if let Some(task) = scheduler.get_task(task_id).cloned() {
                             let mut updated_task = task.clone();
-                            updated_task.status = crate::task_scheduler::TaskStatus::Completed;
+                            updated_task.status = crate::modules::task_scheduler::model::TaskStatus::Completed;
                             if let Err(e) = scheduler.update_task(task_id, updated_task) {
                                 app_state.status_message = Some(crate::app::prepare_status_message(
                                     &format!("Failed to update task: {}", e),
@@ -346,7 +346,7 @@ pub fn handle_email_config_mode(
             };
 
             // Create config
-            let config = crate::task_scheduler::EmailConfig {
+            let config = crate::modules::task_scheduler::model::EmailConfig {
                 email: app_state.email_address.clone(),
                 smtp_server: app_state.email_smtp_server.clone(),
                 smtp_port: port,
@@ -412,11 +412,11 @@ pub fn handle_adding_reminder_mode(
         KeyCode::Up | KeyCode::Down if app_state.input_field == 2 => {
             // Toggle reminder type when on the type field
             app_state.reminder_type = match app_state.reminder_type {
-                crate::task_scheduler::ReminderType::Email => crate::task_scheduler::ReminderType::Notification,
-                crate::task_scheduler::ReminderType::Notification => crate::task_scheduler::ReminderType::Sms,
-                crate::task_scheduler::ReminderType::Sms => crate::task_scheduler::ReminderType::Both,
-                crate::task_scheduler::ReminderType::Both => crate::task_scheduler::ReminderType::All,
-                crate::task_scheduler::ReminderType::All => crate::task_scheduler::ReminderType::Email,
+                crate::modules::task_scheduler::model::ReminderType::Email => crate::modules::task_scheduler::model::ReminderType::Notification,
+                crate::modules::task_scheduler::model::ReminderType::Notification => crate::modules::task_scheduler::model::ReminderType::Sms,
+                crate::modules::task_scheduler::model::ReminderType::Sms => crate::modules::task_scheduler::model::ReminderType::Both,
+                crate::modules::task_scheduler::model::ReminderType::Both => crate::modules::task_scheduler::model::ReminderType::All,
+                crate::modules::task_scheduler::model::ReminderType::All => crate::modules::task_scheduler::model::ReminderType::Email,
             };
         },
         KeyCode::Char('n') => {

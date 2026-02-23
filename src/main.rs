@@ -16,13 +16,13 @@
 //! It follows an event-driven architecture with different operational modes for each feature.
 
 // Module imports
+mod modules;
 mod network_tools;
 mod password_manager;
 mod system_utilities;
-mod task_scheduler;
 
 // Crate list
-use crate::task_scheduler::{EmailConfig, ReminderType, TaskPriority, TaskScheduler, TaskStatus};
+use crate::modules::task_scheduler::model::{EmailConfig, ReminderType, TaskPriority, TaskScheduler, TaskStatus};
 use chrono::{Local, NaiveDateTime, Utc};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent},
@@ -369,7 +369,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create task scheduler instance
     let task_scheduler = Arc::new(Mutex::new(TaskScheduler::new("tasks.json")));
 
-    let _scheduler_thread = task_scheduler::run_scheduler_background_thread(task_scheduler.clone());
+    let _scheduler_thread = crate::modules::task_scheduler::model::run_scheduler_background_thread(task_scheduler.clone());
 
     // Instantiate TerminalCleanup to ensure it is used
     let _cleanup = TerminalCleanup;
@@ -969,6 +969,8 @@ fn handle_email_config_mode(
                 smtp_port: port,
                 username: app_state.email_username.clone(),
                 password: app_state.email_password.clone(),
+                retry_attempts: 3,
+                retry_delay_seconds: 300,
             };
 
             // Set config
@@ -1027,8 +1029,10 @@ fn handle_adding_reminder_mode(
             // Cycle through reminder types
             app_state.reminder_type = match app_state.reminder_type {
                 ReminderType::Email => ReminderType::Notification,
-                ReminderType::Notification => ReminderType::Both,
-                ReminderType::Both => ReminderType::Email,
+                ReminderType::Notification => ReminderType::Sms,
+                ReminderType::Sms => ReminderType::Both,
+                ReminderType::Both => ReminderType::All,
+                ReminderType::All => ReminderType::Email,
             };
         }
         KeyCode::Enter => {
@@ -1641,7 +1645,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                 let rows = sorted_tasks.iter().map(|task| {
                     let id = task.id.to_string();
                     let title = task.title.clone();
-                    let due_date = task_scheduler::format_timestamp(task.due_date);
+                    let due_date = crate::modules::task_scheduler::model::format_timestamp(task.due_date);
                     let priority = format!("{:?}", task.priority);
                     let status = format!("{:?}", task.status);
                     let reminders = task.reminders.len().to_string();

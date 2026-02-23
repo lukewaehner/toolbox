@@ -1,29 +1,43 @@
-use super::task::{Task, TaskPriority, TaskStatus, ReminderType};
-use crate::core::config::get_config;
+use super::task::{Task, TaskPriority, TaskStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum SchedulerError {
-    #[error("Task with ID {id} not found")]
     TaskNotFound { id: u32 },
-    
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-    
-    #[error("Email configuration error: {0}")]
+    Io(std::io::Error),
+    Serialization(serde_json::Error),
     EmailConfig(String),
-    
-    #[error("SMS configuration error: {0}")]
     SmsConfig(String),
+}
+
+impl fmt::Display for SchedulerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SchedulerError::TaskNotFound { id } => write!(f, "Task with ID {} not found", id),
+            SchedulerError::Io(e) => write!(f, "IO error: {}", e),
+            SchedulerError::Serialization(e) => write!(f, "Serialization error: {}", e),
+            SchedulerError::EmailConfig(msg) => write!(f, "Email configuration error: {}", msg),
+            SchedulerError::SmsConfig(msg) => write!(f, "SMS configuration error: {}", msg),
+        }
+    }
+}
+
+impl From<std::io::Error> for SchedulerError {
+    fn from(e: std::io::Error) -> Self {
+        SchedulerError::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for SchedulerError {
+    fn from(e: serde_json::Error) -> Self {
+        SchedulerError::Serialization(e)
+    }
 }
 
 #[derive(Debug)]
@@ -40,11 +54,11 @@ impl TaskScheduler {
             next_id: 1,
             file_path: file_path.to_string(),
         };
-        
+
         if let Err(e) = scheduler.load_tasks() {
             eprintln!("Failed to load tasks: {}", e);
         }
-        
+
         scheduler
     }
 
@@ -109,7 +123,11 @@ impl TaskScheduler {
             .collect()
     }
 
-    pub fn mark_reminder_as_sent(&mut self, task_id: u32, reminder_index: usize) -> Result<(), SchedulerError> {
+    pub fn mark_reminder_as_sent(
+        &mut self,
+        task_id: u32,
+        reminder_index: usize,
+    ) -> Result<(), SchedulerError> {
         if let Some(task) = self.tasks.get_mut(&task_id) {
             if let Some(reminder) = task.reminders.get_mut(reminder_index) {
                 reminder.sent = true;
@@ -167,10 +185,10 @@ impl TaskScheduler {
         }
 
         self.tasks = serde_json::from_str(&contents)?;
-        
+
         // Update next_id to be higher than any existing ID
         self.next_id = self.tasks.keys().max().unwrap_or(&0) + 1;
-        
+
         Ok(())
     }
 }
@@ -179,26 +197,21 @@ pub fn run_scheduler_background_thread(
     scheduler: Arc<Mutex<TaskScheduler>>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
-        println!("Starting task scheduler background thread");
-        
-        // Get check interval from config
-        let check_interval = get_config(|config| config.reminder.check_interval_seconds)
-            .unwrap_or(30);
-        
+        println!("Starting task scheduler background thread (stub)");
+
+        let check_interval = 30u64;
+
         loop {
             thread::sleep(Duration::from_secs(check_interval));
-            
+
             println!("Checking for due reminders...");
-            
-            // This would integrate with the reminder system
-            // For now, it's just a placeholder for the background processing
+
             if let Ok(scheduler) = scheduler.lock() {
                 let tasks_with_reminders = scheduler.get_tasks_with_pending_reminders();
                 if !tasks_with_reminders.is_empty() {
                     println!("Found {} tasks with pending reminders", tasks_with_reminders.len());
-                    // Here we would trigger the reminder processing
                 }
             }
         }
     })
-} 
+}
