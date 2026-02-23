@@ -12,7 +12,7 @@ The v1.0 Stabilize milestone resolves a stalled MVC migration in a Rust TUI appl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Audit** - Identify canonical code and map all duplicate/legacy files before touching anything
+- [x] **Phase 1: Audit** - Identify canonical code and map all duplicate/legacy files before touching anything
 - [ ] **Phase 2: Architecture Consolidation** - Establish single entry point and route all imports through src/modules/
 - [ ] **Phase 3: Error Handling Foundation** - Replace all unwrap()/expect() calls and add terminal drop guard
 - [ ] **Phase 4: Task Scheduler Stability** - Harden Task Scheduler against bad input and SMTP failures
@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Diff the three duplicate entry-point files (main.rs, app.rs, backups/main.bk.rs) and write audit verdicts
-- [ ] 01-02-PLAN.md — Catalogue the four root-level legacy module files against their src/modules/ counterparts and write final audit conclusions
+- [x] 01-02-PLAN.md — Catalogue the four root-level legacy module files against their src/modules/ counterparts and write final audit conclusions
 
 ### Phase 2: Architecture Consolidation
 **Goal**: The application has one canonical entry point (main.rs) and all feature logic is wired through src/modules/ controllers — no root-level imports, no dead duplicates
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audit | 1/2 | In progress | - |
+| 1. Audit | 2/2 | Complete | 2026-02-23 |
 | 2. Architecture Consolidation | 0/TBD | Not started | - |
 | 3. Error Handling Foundation | 0/TBD | Not started | - |
 | 4. Task Scheduler Stability | 0/TBD | Not started | - |

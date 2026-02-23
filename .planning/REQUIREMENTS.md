@@ -11,7 +11,7 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 
 - [ ] **ARCH-01**: Application has a single canonical entry point (`main.rs` only — `app.rs` removed)
 - [ ] **ARCH-02**: Duplicate files (`app.rs`, `backups/main.bk.rs`) audited and removed
-- [ ] **ARCH-03**: Legacy root-level module files (`task_scheduler.rs`, `network_tools.rs`, `password_manager.rs`, `system_utilities.rs`) removed after audit
+- [x] **ARCH-03**: Legacy root-level module files (`task_scheduler.rs`, `network_tools.rs`, `password_manager.rs`, `system_utilities.rs`) removed after audit
 - [ ] **ARCH-04**: `main.rs` references modules exclusively through `src/modules/` controllers, no root-level imports
 
 ### Error Handling
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 1+2 | Audited (Phase 1 plan 01-01 complete) |
-| ARCH-03 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Audited (Phase 1 plan 01-02 complete) |
 | ARCH-04 | Phase 2 | Pending |
 | ERR-01 | Phase 3 | Pending |
 | ERR-02 | Phase 3 | Pending |
@@ -103,4 +103,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after plan 01-01 completion*
+*Last updated: 2026-02-23 after plan 01-02 completion (Phase 1 complete)*
