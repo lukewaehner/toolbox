@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 1 — Audit (complete)
+**Current focus:** Phase 2 — Architecture Consolidation (in progress)
 
 ## Current Position
 
-Phase: 1 of 6 (Audit)
-Plan: 2 of 2 in current phase
-Status: Phase 1 complete — ready for Phase 2
-Last activity: 2026-02-23 — Plan 01-02 complete (legacy module file audit)
+Phase: 2 of 6 (Architecture Consolidation)
+Plan: 1 of 5 in current phase
+Status: Plan 02-01 complete — task_scheduler.rs deleted, types consolidated in MVC module
+Last activity: 2026-02-23 — Plan 02-01 complete (task_scheduler type consolidation)
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 2.5 min
-- Total execution time: 5 min
+- Total plans completed: 3
+- Average duration: 3.0 min
+- Total execution time: 11 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-audit | 2 | 5 min | 2.5 min |
+| 02-architecture-consolidation | 1 | 6 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 2.5 min
+- Last 5 plans: 3.0 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -55,6 +56,10 @@ Recent decisions affecting current work:
 - 01-02: src/system_utilities.rs is SAFE-TO-DELETE — MVC model is byte-for-byte copy
 - 01-02: All four legacy files are actively imported in main.rs — Phase 2 must update import sites before deleting
 - 01-02: MVC controllers still import from legacy files at runtime — import migration is a Phase 2 prerequisite
+- 02-01: model/mod.rs inline types are canonical — task.rs (Critical not Urgent) and scheduler.rs are incompatible stubs kept for Phase 3+ work
+- 02-01: pub use task:: and pub use scheduler:: re-exports removed from model/mod.rs to prevent type conflicts
+- 02-01: modules/mod.rs restricted to task_scheduler only — other MVC modules have unresolvable deps handled in plans 02-02 through 02-04
+- 02-01: scheduler.rs rewritten without thiserror/crate::core — those crates/modules don't exist in current codebase
 
 ### Pending Todos
 
@@ -63,10 +68,10 @@ None yet.
 ### Blockers/Concerns
 
 - 105+ unwrap() sites in Phase 3 is a large sweep; may need to split into sub-plans by module
-- Phase 2 task_scheduler.rs migration is non-trivial: SMS stack (SmsConfig + 5 methods), email dispatch (send_reminder_email, test_email_config, create_smtp_transport), format_timestamp, full check_reminders, full run_scheduler_background_thread
+- modules/mod.rs currently only exposes task_scheduler; plans 02-02 through 02-04 must add network_tools, password_manager, system_utilities to modules/mod.rs as their MVC models are wired in
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 01-02-PLAN.md — legacy module file audit done, Phase 1 complete
+Stopped at: Completed 02-01-PLAN.md — task_scheduler type consolidation, legacy file deleted
 Resume file: None
