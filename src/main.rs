@@ -54,33 +54,19 @@ use tui::{
 };
 
 /// Results from a ping network test
-///
-/// This structure captures the statistics from a ping command execution,
-/// including packet transmission statistics and round-trip time measurements.
 #[derive(serde::Deserialize, Debug)]
 struct PingResult {
-    /// Number of packets transmitted
     packets_transmitted: u32,
-    /// Number of packets successfully received
     packets_received: u32,
-    /// Percentage of packets lost during transmission
     packet_loss: f32,
-    /// Total time of the ping test in milliseconds
     time: Option<u32>,
-    /// Minimum round-trip time in milliseconds
     round_trip_min: f32,
-    /// Average round-trip time in milliseconds
     round_trip_avg: f32,
-    /// Maximum round-trip time in milliseconds
     round_trip_max: f32,
-    /// Standard deviation of round-trip time in milliseconds
     round_trip_mdev: f32,
 }
 
 /// Represents the different input modes of the application
-///
-/// The application operates in different modes depending on the current user interaction.
-/// Each mode has specific input handling behavior.
 #[derive(Debug, Clone, PartialEq)]
 enum InputMode {
     /// Normal navigation mode (menu selection)
@@ -185,7 +171,7 @@ struct AppState {
     active_menu: MenuItem,
     /// Current input mode determining how events are handled
     input_mode: InputMode,
-    
+
     // Password Manager fields
     /// Service name for password entry
     service: String,
@@ -195,10 +181,10 @@ struct AppState {
     password: String,
     /// Current field being edited in password manager (0-2)
     input_field: usize,
-    
+
     /// Error message to display to the user
     error_message: Option<String>,
-    
+
     // Network Tools fields
     /// IP address or domain name for network operations
     address: String,
@@ -208,7 +194,7 @@ struct AppState {
     selected_tool: Option<String>,
     /// Channel receiver for asynchronous speed test results
     speed_test_receiver: Option<Receiver<network_tools::SpeedTestResult>>,
-    
+
     // System Utilities fields
     /// System monitor instance for real-time system information
     system_monitor: Option<Arc<Mutex<SystemMonitor>>>,
@@ -228,7 +214,7 @@ struct AppState {
     process_sort_type: ProcessSortType,
     /// PID of currently selected process
     selected_process_pid: Option<u32>,
-    
+
     // Task Scheduler fields
     /// Task scheduler instance
     task_scheduler: Option<Arc<Mutex<TaskScheduler>>>,
@@ -246,7 +232,7 @@ struct AppState {
     task_tags: String,
     /// ID of currently selected task
     selected_task_id: Option<u32>,
-    
+
     // Email Configuration fields
     /// Email address for notifications
     email_address: String,
@@ -260,7 +246,7 @@ struct AppState {
     email_password: String,
     /// Current field being edited in email config (0-4)
     email_config_field: usize,
-    
+
     // Reminder fields
     /// Date for reminder (format: YYYY-MM-DD)
     reminder_date: String,
@@ -358,11 +344,7 @@ impl Drop for TerminalCleanup {
         if let Err(e) = disable_raw_mode() {
             eprintln!("Failed to disable raw mode: {:?}", e);
         }
-        if let Err(e) = execute!(
-            io::stdout(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        ) {
+        if let Err(e) = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture) {
             eprintln!(
                 "Failed to leave alternate screen or disable mouse capture: {:?}",
                 e

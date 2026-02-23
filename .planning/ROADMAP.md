@@ -44,7 +44,12 @@ Plans:
   2. All root-level legacy module files removed (confirmed safe by Phase 1 audit)
   3. main.rs imports feature logic exclusively through src/modules/*/controller paths — no use crate::task_scheduler or equivalent root-level imports
   4. The binary compiles cleanly with no dead_code or unused_imports warnings for the removed files
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Fix task_scheduler module collision and rewire imports; delete src/task_scheduler.rs
+- [ ] 02-02-PLAN.md — Rewire network_tools, password_manager, system_utilities imports to src/modules/; delete 3 legacy files
+- [ ] 02-03-PLAN.md — Fix crate::app:: references, remove mod app, delete src/app.rs and src/backups/
 
 ### Phase 3: Error Handling Foundation
 **Goal**: The application no longer contains any call site that can panic on bad data — all I/O and parse failures propagate as Results, and a terminal panic crash leaves the shell usable
@@ -93,8 +98,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audit | 2/2 | Complete | 2026-02-23 |
-| 2. Architecture Consolidation | 0/TBD | Not started | - |
+| 1. Audit | 2/2 | Complete    | 2026-02-23 |
+| 2. Architecture Consolidation | 0/3 | Not started | - |
 | 3. Error Handling Foundation | 0/TBD | Not started | - |
 | 4. Task Scheduler Stability | 0/TBD | Not started | - |
 | 5. System Utilities Stability | 0/TBD | Not started | - |

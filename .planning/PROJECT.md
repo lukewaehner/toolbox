@@ -64,5 +64,17 @@ Key facts from codebase analysis:
 | Prioritize Task Scheduler + System Utilities | These are the actively used modules | — Pending |
 | Replace unwrap() with proper error handling | Main source of panics/crashes | — Pending |
 
+## Current Milestone: v1.0 Stabilize
+
+**Goal:** Complete the stalled MVC migration, eliminate panic-prone unwrap() calls, and make Task Scheduler and System Utilities crash-free.
+
+**Target work:**
+- Audit and resolve duplicate files (main.rs / app.rs / backups/)
+- Finish MVC module separation, remove legacy root-level files
+- Replace 105+ unwrap() / expect() calls with proper error handling
+- Stabilize Task Scheduler (no panics on bad input, email errors propagated)
+- Stabilize System Utilities (no panics on bad input)
+- Clean up import inconsistencies, establish canonical entry point
+
 ---
-*Last updated: 2026-02-22 after initialization*
+*Last updated: 2026-02-23 after v1.0 milestone started*
