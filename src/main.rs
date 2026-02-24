@@ -553,12 +553,65 @@ fn run_app<B: Backend>(
     mut app_state: AppState,
 ) -> io::Result<()> {
     while running.load(Ordering::Relaxed) {
-        if app_state.system_monitor.is_some() {
-            if let Some(ref monitor) = app_state.system_monitor {
-                if let Ok(mut monitor) = monitor.lock() {
-                    if monitor.refresh_if_needed() {
-                        app_state.system_snapshot = Some(monitor.snapshot().clone());
+        // Clone the Arc so we don't hold a borrow into app_state while updating state fields.
+        let monitor_arc = app_state.system_monitor.as_ref().map(Arc::clone);
+        if let Some(monitor_arc) = monitor_arc {
+            if let Ok(mut monitor) = monitor_arc.lock() {
+                if monitor.refresh_if_needed() {
+                    let snapshot = monitor.snapshot().clone();
+                    // Release the monitor lock before mutating app_state
+                    drop(monitor);
+
+                    // CPU panel failure detection
+                    if snapshot.cpu_cores_count == 0 {
+                        app_state.cpu_fail_count = app_state.cpu_fail_count.saturating_add(1);
+                        if app_state.cpu_fail_count >= SYS_FAIL_THRESHOLD && !app_state.cpu_panel_error {
+                            app_state.cpu_panel_error = true;
+                            app_state.push_notification("CPU monitoring unavailable", NotificationSeverity::Error);
+                        }
+                    } else {
+                        app_state.cpu_fail_count = 0;
+                        app_state.cpu_panel_error = false;
                     }
+
+                    // Memory panel failure detection
+                    if snapshot.memory_total == 0 {
+                        app_state.memory_fail_count = app_state.memory_fail_count.saturating_add(1);
+                        if app_state.memory_fail_count >= SYS_FAIL_THRESHOLD && !app_state.memory_panel_error {
+                            app_state.memory_panel_error = true;
+                            app_state.push_notification("Memory monitoring unavailable", NotificationSeverity::Error);
+                        }
+                    } else {
+                        app_state.memory_fail_count = 0;
+                        app_state.memory_panel_error = false;
+                    }
+
+                    // Disk panel failure detection
+                    if snapshot.disks.is_empty() {
+                        app_state.disk_fail_count = app_state.disk_fail_count.saturating_add(1);
+                        if app_state.disk_fail_count >= SYS_FAIL_THRESHOLD && !app_state.disk_panel_error {
+                            app_state.disk_panel_error = true;
+                            app_state.push_notification("Disk data unavailable", NotificationSeverity::Error);
+                        }
+                    } else {
+                        app_state.disk_fail_count = 0;
+                        app_state.disk_panel_error = false;
+                    }
+
+                    // Process panel failure detection
+                    if snapshot.top_processes.is_empty() {
+                        app_state.process_fail_count = app_state.process_fail_count.saturating_add(1);
+                        if app_state.process_fail_count >= SYS_FAIL_THRESHOLD && !app_state.process_panel_error {
+                            app_state.process_panel_error = true;
+                            app_state.push_notification("Process data unavailable", NotificationSeverity::Error);
+                        }
+                    } else {
+                        app_state.process_fail_count = 0;
+                        app_state.process_panel_error = false;
+                    }
+
+                    // Always update the snapshot so draw functions have fresh data for non-failing panels
+                    app_state.system_snapshot = Some(snapshot);
                 }
             }
         }
@@ -612,18 +665,6 @@ fn run_app<B: Backend>(
             }
             render_notifications(f, &app_state.notifications);
         })?;
-
-        // Refresh system data if needed
-        if app_state.active_menu == MenuItem::SystemUtilities && app_state.system_monitor.is_some()
-        {
-            if let Some(ref monitor) = app_state.system_monitor {
-                if let Ok(mut monitor) = monitor.lock() {
-                    if monitor.refresh_if_needed() {
-                        app_state.system_snapshot = Some(monitor.snapshot().clone());
-                    }
-                }
-            }
-        }
 
         if event::poll(Duration::from_millis(10))? {
             if let Ok(event) = event::read() {
