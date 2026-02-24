@@ -184,6 +184,10 @@ impl Notification {
     }
 }
 
+/// Consecutive sysinfo failures required before a panel transitions into error state.
+/// During the grace period (< 3 failures) the last known good snapshot is shown.
+const SYS_FAIL_THRESHOLD: u8 = 3;
+
 /// Central application state structure
 ///
 /// This structure holds all the state information for the application, including:
@@ -243,6 +247,19 @@ struct AppState {
     process_sort_type: ProcessSortType,
     /// PID of currently selected process
     selected_process_pid: Option<u32>,
+
+    /// Consecutive sysinfo failure counts per panel (reset to 0 on any successful read)
+    cpu_fail_count: u8,
+    memory_fail_count: u8,
+    disk_fail_count: u8,
+    process_fail_count: u8,
+
+    /// True when panel has been in error state long enough to fire a notification (>= 3 consecutive failures).
+    /// Prevents repeated notifications on every frame — notification fires once on transition false→true.
+    cpu_panel_error: bool,
+    memory_panel_error: bool,
+    disk_panel_error: bool,
+    process_panel_error: bool,
 
     // Task Scheduler fields
     /// Task scheduler instance
@@ -350,6 +367,14 @@ impl Default for AppState {
             status_message: None,
             process_sort_type: ProcessSortType::CpuUsage,
             selected_process_pid: None,
+            cpu_fail_count: 0,
+            memory_fail_count: 0,
+            disk_fail_count: 0,
+            process_fail_count: 0,
+            cpu_panel_error: false,
+            memory_panel_error: false,
+            disk_panel_error: false,
+            process_panel_error: false,
             task_scheduler: None,
             task_filter: None,
             task_title: String::new(),
