@@ -1782,14 +1782,20 @@ fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             ),
         ]);
 
-        // Highlight the entire block if this field is selected
-        let block_style = if *is_selected {
-            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+        // Determine border color: red if invalid, yellow if selected, default otherwise
+        let border_color = if i == 2 && app_state.task_date_invalid {
+            Color::Red
+        } else if *is_selected {
+            Color::Yellow
         } else {
-            Style::default()
+            Color::Reset
         };
 
-        let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color));
+
+        let paragraph = Paragraph::new(text).block(block);
         f.render_widget(paragraph, layout[i + 1]);
     }
 
@@ -2141,15 +2147,20 @@ fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             ),
         ]);
 
-        // Highlight the entire block if this field is selected
-        let block_style = if *is_selected {
-            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+        // Determine border color: red if invalid, yellow if selected, default otherwise
+        let border_color = if i == 0 && app_state.email_address_invalid {
+            Color::Red
+        } else if *is_selected {
+            Color::Yellow
         } else {
-            Style::default()
+            Color::Reset
         };
 
-        let paragraph =
-            Paragraph::new(text).block(Block::default().borders(Borders::ALL).style(block_style));
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color));
+
+        let paragraph = Paragraph::new(text).block(block);
 
         f.render_widget(paragraph, layout[i + 1]);
     }
