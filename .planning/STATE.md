@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 5 — System Utilities Stability (in progress)
+**Current focus:** Phase 6 — Library Migration (ratatui upgrade)
 
 ## Current Position
 
-Phase: 5 of 6 (System Utilities Stability) — IN PROGRESS
-Plan: 1 of 2 in current phase — PLAN COMPLETE
-Status: Plan 05-01 complete — per-panel error tracking state (8 fields) + SYS_FAIL_THRESHOLD + consolidated refresh block with per-panel failure detection in run_app
-Last activity: 2026-02-24 — Plan 05-01 complete (cpu/memory/disk/process fail counts and error flags, single refresh block, Arc::clone-before-mutate borrow pattern)
+Phase: 5 of 6 (System Utilities Stability) — COMPLETE
+Plan: 2 of 2 in current phase — PLAN COMPLETE
+Status: Plan 05-02 complete — all four System Utilities draw functions updated with per-panel N/A rendering; SYS-01 and SYS-02 requirements closed
+Last activity: 2026-02-24 — Plan 05-02 complete (N/A gauges, error-row tables, disk error paragraph, per-row N/A fallbacks for zero fields)
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 85%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 4.3 min
-- Total execution time: 43 min
+- Total plans completed: 11
+- Average duration: 4.2 min
+- Total execution time: 46 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [████████░░] 75%
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
 | 04-task-scheduler-stability | 2 | 10 min | 5 min |
-| 05-system-utilities-stability | 1 | 3 min | 3 min |
+| 05-system-utilities-stability | 2 | 6 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.2 min
@@ -86,6 +86,9 @@ Recent decisions affecting current work:
 - 05-01: Arc::clone-before-mutate pattern — clone monitor Arc into local before if-let block so app_state borrow is freed for push_notification mutation
 - 05-01: saturating_add used for u8 fail counters — prevents overflow on persistent sysinfo failures without panic
 - 05-01: Single consolidated pre-draw refresh block (not two gated on active_menu) — monitoring stays current even when user navigates away from SystemUtilities
+- 05-02: draw_process_list process_error: bool parameter passed from call site — keeps helper reusable and signature explicit vs accessing app_state directly
+- 05-02: disk_panel_error branch ordered before disks.is_empty() — error flag takes priority over empty-disk state; both produce visible output, error is more specific
+- 05-02: Per-row N/A fallback uses zero sentinel (mem_mb==0, run_time==0, disk_kb==0) — consistent with 05-01's sentinel-value-failure-detection pattern
 
 ### Pending Todos
 
@@ -98,5 +101,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 05-01-PLAN.md — per-panel error tracking state; SYS_FAIL_THRESHOLD; consolidated refresh block; Arc::clone-before-mutate borrow fix
+Stopped at: Completed 05-02-PLAN.md — N/A draw rendering for all four System Utilities panels; SYS-01 and SYS-02 closed; Phase 5 complete
 Resume file: None

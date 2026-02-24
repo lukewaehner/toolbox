@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Architecture Consolidation** - Establish single entry point and route all imports through src/modules/ (completed 2026-02-24)
 - [x] **Phase 3: Error Handling Foundation** - Replace all unwrap()/expect() calls and add terminal drop guard (completed 2026-02-24)
 - [x] **Phase 4: Task Scheduler Stability** - Harden Task Scheduler against bad input and SMTP failures (completed 2026-02-24)
-- [ ] **Phase 5: System Utilities Stability** - Harden System Utilities against resource query failures
+- [x] **Phase 5: System Utilities Stability** - Harden System Utilities against resource query failures (completed 2026-02-24)
 - [ ] **Phase 6: Library Migration** - Upgrade deprecated tui crate to ratatui
 
 ## Phase Details
@@ -115,5 +115,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Architecture Consolidation | 3/3 | Complete   | 2026-02-24 |
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
 | 4. Task Scheduler Stability | 2/2 | Complete   | 2026-02-24 |
-| 5. System Utilities Stability | 1/2 | In Progress|  |
+| 5. System Utilities Stability | 2/2 | Complete   | 2026-02-24 |
 | 6. Library Migration | 0/TBD | Not started | - |
