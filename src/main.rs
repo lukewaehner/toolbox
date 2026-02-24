@@ -3569,104 +3569,142 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
             .style(Style::default().add_modifier(Modifier::BOLD))
             .height(1);
 
-        // Get a sorted copy of processes
-        let mut sorted_processes = snapshot.top_processes.clone();
-        match app_state.process_sort_type {
-            ProcessSortType::Pid => {
-                sorted_processes.sort_by_key(|p| p.pid);
-            }
-            ProcessSortType::Name => {
-                sorted_processes.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-            }
-            ProcessSortType::CpuUsage => {
-                sorted_processes.sort_by(|a, b| {
-                    b.cpu_usage
-                        .partial_cmp(&a.cpu_usage)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-            }
-            ProcessSortType::MemoryUsage => {
-                sorted_processes.sort_by(|a, b| b.memory_usage.cmp(&a.memory_usage));
-            }
-            ProcessSortType::Runtime => {
-                sorted_processes.sort_by(|a, b| b.run_time.cmp(&a.run_time));
-            }
-        }
+        if app_state.process_panel_error {
+            let error_row = Row::new(vec![
+                Cell::from("--"),
+                Cell::from("Process data unavailable")
+                    .style(Style::default().fg(Color::Red)),
+                Cell::from("--"),
+                Cell::from("--"),
+                Cell::from("--"),
+                Cell::from("--"),
+                Cell::from("--"),
+                Cell::from("--"),
+            ]);
 
-        // Process rows
-        let rows = sorted_processes.iter().map(|process| {
-            let pid = process.pid.to_string();
-            let name = process.name.clone();
-            let cpu = format!("{:.1}%", process.cpu_usage);
-            let mem = format!("{} MB", process.memory_usage / 1024 / 1024);
-            let mem_percent = format!("{:.1}%", process.memory_usage_percent);
-            let disk_io = format!("{} KB", process.disk_usage / 1024);
+            let table = Table::new(vec![error_row])
+                .header(header)
+                .block(Block::default().title("Processes").borders(Borders::ALL))
+                .widths(&[
+                    Constraint::Length(8),
+                    Constraint::Percentage(25),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Length(10),
+                    Constraint::Length(10),
+                ])
+                .column_spacing(1);
 
-            // Format start time
-            let start_datetime = chrono::DateTime::from_timestamp(process.start_time as i64, 0)
-                .map(|dt| dt.format("%H:%M:%S").to_string())
-                .unwrap_or_else(|| "Unknown".to_string());
-
-            // Format runtime
-            let hours = process.run_time / 3600;
-            let minutes = (process.run_time % 3600) / 60;
-            let seconds = process.run_time % 60;
-            let runtime = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
-
-            Row::new(vec![
-                Cell::from(pid),
-                Cell::from(name),
-                Cell::from(cpu),
-                Cell::from(mem),
-                Cell::from(mem_percent),
-                Cell::from(disk_io),
-                Cell::from(start_datetime),
-                Cell::from(runtime),
-            ])
-        });
-
-        // Create a stateful table
-        let mut state = tui::widgets::TableState::default();
-
-        // Find the currently selected process by PID
-        let selected_index = if let Some(selected_pid) = app_state.selected_process_pid {
-            sorted_processes.iter().position(|p| p.pid == selected_pid)
+            f.render_widget(table, chunks[1]);
         } else {
-            None
-        };
+            // Get a sorted copy of processes
+            let mut sorted_processes = snapshot.top_processes.clone();
+            match app_state.process_sort_type {
+                ProcessSortType::Pid => {
+                    sorted_processes.sort_by_key(|p| p.pid);
+                }
+                ProcessSortType::Name => {
+                    sorted_processes.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+                }
+                ProcessSortType::CpuUsage => {
+                    sorted_processes.sort_by(|a, b| {
+                        b.cpu_usage
+                            .partial_cmp(&a.cpu_usage)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+                ProcessSortType::MemoryUsage => {
+                    sorted_processes.sort_by(|a, b| b.memory_usage.cmp(&a.memory_usage));
+                }
+                ProcessSortType::Runtime => {
+                    sorted_processes.sort_by(|a, b| b.run_time.cmp(&a.run_time));
+                }
+            }
 
-        // Set the selected index
-        if let Some(idx) = selected_index {
-            state.select(Some(idx));
-        } else if !sorted_processes.is_empty() {
-            // Default to first item if nothing is selected, but we can't update app_state here
-            state.select(Some(0));
-            // We can't do this here since app_state is borrowed immutably:
-            // app_state.selected_process_pid = Some(sorted_processes[0].pid);
+            // Process rows
+            let rows = sorted_processes.iter().map(|process| {
+                let pid = process.pid.to_string();
+                let name = process.name.clone();
+                let cpu = format!("{:.1}%", process.cpu_usage);
+
+                let mem_mb = process.memory_usage / 1024 / 1024;
+                let mem = if mem_mb == 0 { "N/A".to_string() } else { format!("{} MB", mem_mb) };
+                let mem_percent = format!("{:.1}%", process.memory_usage_percent);
+                let disk_kb = process.disk_usage / 1024;
+                let disk_io = if disk_kb == 0 { "N/A".to_string() } else { format!("{} KB", disk_kb) };
+
+                // Format start time
+                let start_datetime = chrono::DateTime::from_timestamp(process.start_time as i64, 0)
+                    .map(|dt| dt.format("%H:%M:%S").to_string())
+                    .unwrap_or_else(|| "Unknown".to_string());
+
+                // Format runtime
+                let hours = process.run_time / 3600;
+                let minutes = (process.run_time % 3600) / 60;
+                let seconds = process.run_time % 60;
+                let runtime = if process.run_time == 0 {
+                    "N/A".to_string()
+                } else {
+                    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+                };
+
+                Row::new(vec![
+                    Cell::from(pid),
+                    Cell::from(name),
+                    Cell::from(cpu),
+                    Cell::from(mem),
+                    Cell::from(mem_percent),
+                    Cell::from(disk_io),
+                    Cell::from(start_datetime),
+                    Cell::from(runtime),
+                ])
+            });
+
+            // Create a stateful table
+            let mut state = tui::widgets::TableState::default();
+
+            // Find the currently selected process by PID
+            let selected_index = if let Some(selected_pid) = app_state.selected_process_pid {
+                sorted_processes.iter().position(|p| p.pid == selected_pid)
+            } else {
+                None
+            };
+
+            // Set the selected index
+            if let Some(idx) = selected_index {
+                state.select(Some(idx));
+            } else if !sorted_processes.is_empty() {
+                // Default to first item if nothing is selected, but we can't update app_state here
+                state.select(Some(0));
+                // We can't do this here since app_state is borrowed immutably:
+                // app_state.selected_process_pid = Some(sorted_processes[0].pid);
+            }
+
+            let table = Table::new(rows)
+                .header(header)
+                .block(Block::default().title("Processes").borders(Borders::ALL))
+                .widths(&[
+                    Constraint::Length(8),
+                    Constraint::Percentage(25),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Length(10),
+                    Constraint::Length(10),
+                ])
+                .column_spacing(1)
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                );
+
+            // Render stateful table
+            f.render_stateful_widget(table, chunks[1], &mut state);
         }
-
-        let table = Table::new(rows)
-            .header(header)
-            .block(Block::default().title("Processes").borders(Borders::ALL))
-            .widths(&[
-                Constraint::Length(8),
-                Constraint::Percentage(25),
-                Constraint::Length(8),
-                Constraint::Length(10),
-                Constraint::Length(8),
-                Constraint::Length(10),
-                Constraint::Length(10),
-                Constraint::Length(10),
-            ])
-            .column_spacing(1)
-            .highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            );
-
-        // Render stateful table
-        f.render_stateful_widget(table, chunks[1], &mut state);
     } else {
         // If no snapshot is available
         let no_data = Paragraph::new("Loading process data...")
@@ -3738,7 +3776,16 @@ fn draw_disk_analyzer<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     // Disk info
     if let Some(ref snapshot) = app_state.system_snapshot {
-        if snapshot.disks.is_empty() {
+        if app_state.disk_panel_error {
+            let na_msg = Paragraph::new(vec![
+                Spans::from(vec![Span::styled(
+                    "Disk data unavailable",
+                    Style::default().fg(Color::Red),
+                )]),
+            ])
+            .block(Block::default().borders(Borders::ALL));
+            f.render_widget(na_msg, chunks[1]);
+        } else if snapshot.disks.is_empty() {
             let no_disks = Paragraph::new("No disks found")
                 .style(Style::default().fg(text_color))
                 .block(Block::default().borders(Borders::ALL));
