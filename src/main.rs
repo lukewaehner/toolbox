@@ -286,6 +286,11 @@ struct AppState {
 
     /// Active notification messages (bottom-right overlay, auto-dismiss after 5s)
     notifications: Vec<Notification>,
+
+    /// True when task_due_date has >= 10 chars but fails YYYY-MM-DD parse
+    task_date_invalid: bool,
+    /// True when email_address has '@' but fails basic email format check
+    email_address_invalid: bool,
 }
 
 /// Status message displayed to the user
@@ -360,6 +365,8 @@ impl Default for AppState {
             reminder_time: String::new(),
             reminder_type: ReminderType::Email,
             notifications: Vec::new(),
+            task_date_invalid: false,
+            email_address_invalid: false,
         }
     }
 }
@@ -1010,6 +1017,7 @@ fn handle_email_config_mode(
     match code {
         KeyCode::Esc => {
             app_state.input_mode = InputMode::Normal;
+            app_state.email_address_invalid = false;
         }
         KeyCode::Char('t') if app_state.email_config_field == 99 => {
             // Gate: SMTP-dependent features are disabled when email config load failed.
@@ -1054,34 +1062,80 @@ fn handle_email_config_mode(
         KeyCode::BackTab => {
             app_state.email_config_field = (app_state.email_config_field + 4) % 5;
         }
-        KeyCode::Char(c) => match app_state.email_config_field {
-            0 => app_state.email_address.push(c),
-            1 => app_state.email_smtp_server.push(c),
-            2 => app_state.email_smtp_port.push(c),
-            3 => app_state.email_username.push(c),
-            4 => app_state.email_password.push(c),
-            _ => {}
-        },
-        KeyCode::Backspace => match app_state.email_config_field {
-            0 => {
-                app_state.email_address.pop();
+        KeyCode::Char(c) => {
+            match app_state.email_config_field {
+                0 => app_state.email_address.push(c),
+                1 => app_state.email_smtp_server.push(c),
+                2 => app_state.email_smtp_port.push(c),
+                3 => app_state.email_username.push(c),
+                4 => app_state.email_password.push(c),
+                _ => {}
             }
-            1 => {
-                app_state.email_smtp_server.pop();
+            // Live validate email field once '@' is present
+            if app_state.email_config_field == 0 {
+                if app_state.email_address.contains('@') {
+                    let valid = {
+                        let parts: Vec<&str> = app_state.email_address.splitn(2, '@').collect();
+                        parts.len() == 2
+                            && !parts[0].is_empty()
+                            && parts[1].contains('.')
+                            && !parts[1].starts_with('.')
+                            && !parts[1].ends_with('.')
+                    };
+                    app_state.email_address_invalid = !valid;
+                } else {
+                    app_state.email_address_invalid = false;
+                }
             }
-            2 => {
-                app_state.email_smtp_port.pop();
+        }
+        KeyCode::Backspace => {
+            match app_state.email_config_field {
+                0 => {
+                    app_state.email_address.pop();
+                }
+                1 => {
+                    app_state.email_smtp_server.pop();
+                }
+                2 => {
+                    app_state.email_smtp_port.pop();
+                }
+                3 => {
+                    app_state.email_username.pop();
+                }
+                4 => {
+                    app_state.email_password.pop();
+                }
+                _ => {}
             }
-            3 => {
-                app_state.email_username.pop();
+            // Live validate email field once '@' is present
+            if app_state.email_config_field == 0 {
+                if app_state.email_address.contains('@') {
+                    let valid = {
+                        let parts: Vec<&str> = app_state.email_address.splitn(2, '@').collect();
+                        parts.len() == 2
+                            && !parts[0].is_empty()
+                            && parts[1].contains('.')
+                            && !parts[1].starts_with('.')
+                            && !parts[1].ends_with('.')
+                    };
+                    app_state.email_address_invalid = !valid;
+                } else {
+                    app_state.email_address_invalid = false;
+                }
             }
-            4 => {
-                app_state.email_password.pop();
-            }
-            _ => {}
-        },
+        }
         KeyCode::Enter => {
             println!("Saving email config...");
+            // Validate email format before empty-field check
+            if app_state.email_address_invalid {
+                app_state.input_mode = InputMode::ConfiguringEmail; // stay in form
+                app_state.email_config_field = 0; // jump to email field
+                app_state.push_notification(
+                    "Invalid email address format",
+                    NotificationSeverity::Warning,
+                );
+                return Ok(());
+            }
             // Validate and save email config
             if app_state.email_address.is_empty()
                 || app_state.email_smtp_server.is_empty()
@@ -1333,6 +1387,7 @@ fn handle_adding_task_mode(
             app_state.task_description.clear();
             app_state.task_due_date.clear();
             app_state.task_tags.clear();
+            app_state.task_date_invalid = false;
         }
         KeyCode::Tab => {
             app_state.input_field = (app_state.input_field + 1) % 4; // Cycle through title, description, due date, tags
@@ -1343,31 +1398,60 @@ fn handle_adding_task_mode(
         KeyCode::Char('q') => {
             running.store(false, Ordering::Relaxed);
         }
-        KeyCode::Char(c) => match app_state.input_field {
-            0 => app_state.task_title.push(c),
-            1 => app_state.task_description.push(c),
-            2 => app_state.task_due_date.push(c),
-            3 => app_state.task_tags.push(c),
-            _ => {}
-        },
-        KeyCode::Backspace => match app_state.input_field {
-            0 => {
-                app_state.task_title.pop();
+        KeyCode::Char(c) => {
+            match app_state.input_field {
+                0 => app_state.task_title.push(c),
+                1 => app_state.task_description.push(c),
+                2 => app_state.task_due_date.push(c),
+                3 => app_state.task_tags.push(c),
+                _ => {}
             }
-            1 => {
-                app_state.task_description.pop();
+            // Live validate date field after minimum length
+            if app_state.input_field == 2 {
+                if app_state.task_due_date.len() >= 10 {
+                    app_state.task_date_invalid = parse_due_date(&app_state.task_due_date).is_none();
+                } else {
+                    app_state.task_date_invalid = false;
+                }
             }
-            2 => {
-                app_state.task_due_date.pop();
+        }
+        KeyCode::Backspace => {
+            match app_state.input_field {
+                0 => {
+                    app_state.task_title.pop();
+                }
+                1 => {
+                    app_state.task_description.pop();
+                }
+                2 => {
+                    app_state.task_due_date.pop();
+                }
+                3 => {
+                    app_state.task_tags.pop();
+                }
+                _ => {}
             }
-            3 => {
-                app_state.task_tags.pop();
+            // Live validate date field after minimum length
+            if app_state.input_field == 2 {
+                if app_state.task_due_date.len() >= 10 {
+                    app_state.task_date_invalid = parse_due_date(&app_state.task_due_date).is_none();
+                } else {
+                    app_state.task_date_invalid = false;
+                }
             }
-            _ => {}
-        },
+        }
         KeyCode::Enter => {
-            // Parse due date
+            // Parse due date — validate first
             let due_date = parse_due_date(&app_state.task_due_date);
+            if due_date.is_none() {
+                app_state.task_date_invalid = true;
+                app_state.input_field = 2; // jump cursor to due date field
+                app_state.push_notification(
+                    "Invalid due date — use YYYY-MM-DD format",
+                    NotificationSeverity::Warning,
+                );
+                return Ok(());
+            }
 
             if let Some(timestamp) = due_date {
                 // Parse tags
@@ -1421,13 +1505,6 @@ fn handle_adding_task_mode(
                         // Scheduler not initialized
                     }
                 }
-            } else {
-                // Error message for invalid date
-                app_state.status_message = Some(prepare_status_message(
-                    "Invalid due date format (use YYYY-MM-DD)",
-                    StatusMessageType::Error,
-                    3,
-                ));
             }
         }
         KeyCode::Up => {

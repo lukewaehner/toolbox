@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 3 of 6 (Error Handling Foundation)
-Plan: 1 of 3 in current phase
-Status: Plan 03-01 complete — panic hook installed; zero .unwrap()/.expect() in compiled code tree; terminal restore on crash path established
-Last activity: 2026-02-23 — Plan 03-01 complete (panic hook + unwrap elimination across main.rs and network_tools model)
+Plan: 3 of 3 in current phase — PHASE COMPLETE
+Status: Plan 03-03 complete — email config and task file I/O errors wired to TUI notification overlay; SMTP gate with auto-recovery; ERR-02 and ERR-03 satisfied
+Last activity: 2026-02-24 — Plan 03-03 complete (I/O error wiring: Result-returning save/load functions, startup notifications, SMTP gate)
 
-Progress: [██████░░░░] 46%
+Progress: [███████░░░] 54%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 3.8 min
-- Total execution time: 30 min
+- Total plans completed: 8
+- Average duration: 4.2 min
+- Total execution time: 38 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [██████░░░░] 46%
 |-------|-------|-------|----------|
 | 01-audit | 2 | 5 min | 2.5 min |
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
-| 03-error-handling-foundation | 1 | 8 min | 8 min |
+| 03-error-handling-foundation | 3 | 24 min | 8 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.4 min
@@ -71,6 +71,10 @@ Recent decisions affecting current work:
 - 03-01: is_dark_mode() .expect() replaced with let-else returning false — cosmetic function, safe fallback
 - 03-01: sort_by unwraps replaced with match (Option, Option) pattern — Ordering::Equal on missing IDs; IDs sourced from get_all_tasks() so gap unreachable
 - 03-01: Mutex poison recovery via unwrap_or_else(|e| e.into_inner()) in parallel_speed_test threads
+- 03-03: extract-result-before-notify pattern — clone error string from locked scheduler before calling app_state.push_notification to avoid borrow conflicts
+- 03-03: add_task() changed from u32 to Result<u32, String> — only caller in main.rs, safe change to propagate save errors
+- 03-03: SMTP gate in event-loop reminder check (not a separate handler) because background thread cannot push to app_state.notifications
+- 03-03: Background thread save_tasks failures use eprintln! as fallback — cannot push to app_state from background thread
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 03-01-PLAN.md — panic hook installed, zero .unwrap()/.expect() in compiled code tree
+Last session: 2026-02-24
+Stopped at: Completed 03-03-PLAN.md — email config and task file I/O errors wired to notification overlay; Phase 3 complete
 Resume file: None

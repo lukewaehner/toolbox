@@ -17,8 +17,8 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 ### Error Handling
 
 - [x] **ERR-01**: All `.unwrap()` / `.expect()` calls replaced with `Result`-based error handling
-- [ ] **ERR-02**: Email configuration save/load errors propagated to UI layer (not swallowed with `eprintln!`)
-- [ ] **ERR-03**: File I/O errors (tasks, passwords) propagated to caller
+- [x] **ERR-02**: Email configuration save/load errors propagated to UI layer (not swallowed with `eprintln!`)
+- [x] **ERR-03**: File I/O errors (tasks, passwords) propagated to caller
 
 ### Task Scheduler Stability
 
@@ -87,8 +87,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ARCH-03 | Phase 1 | Audited (Phase 1 plan 01-02 complete) |
 | ARCH-04 | Phase 2 | Complete |
 | ERR-01 | Phase 3 | Complete |
-| ERR-02 | Phase 3 | Pending |
-| ERR-03 | Phase 3 | Pending |
+| ERR-02 | Phase 3 | Complete |
+| ERR-03 | Phase 3 | Complete |
 | TASK-01 | Phase 4 | Pending |
 | TASK-02 | Phase 4 | Pending |
 | SYS-01 | Phase 5 | Pending |
