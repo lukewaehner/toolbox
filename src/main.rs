@@ -291,6 +291,9 @@ struct AppState {
     task_date_invalid: bool,
     /// True when email_address has '@' but fails basic email format check
     email_address_invalid: bool,
+
+    /// Channel receiver for async SMTP test results (None = no test running)
+    smtp_test_receiver: Option<Receiver<Result<(), String>>>,
 }
 
 /// Status message displayed to the user
@@ -367,6 +370,7 @@ impl Default for AppState {
             notifications: Vec::new(),
             task_date_invalid: false,
             email_address_invalid: false,
+            smtp_test_receiver: None,
         }
     }
 }
@@ -1019,7 +1023,17 @@ fn handle_email_config_mode(
             app_state.input_mode = InputMode::Normal;
             app_state.email_address_invalid = false;
         }
-        KeyCode::Char('t') if app_state.email_config_field == 99 => {
+        KeyCode::Char('t') => {
+            // Only start a new test if no test is currently running
+            if app_state.smtp_test_receiver.is_some() {
+                app_state.status_message = Some(prepare_status_message(
+                    "SMTP test already running...",
+                    StatusMessageType::Info,
+                    2,
+                ));
+                return Ok(());
+            }
+
             // Gate: SMTP-dependent features are disabled when email config load failed.
             // Cleared automatically when set_email_config() succeeds — no restart needed.
             let smtp_load_failed = app_state
@@ -1035,25 +1049,27 @@ fn handle_email_config_mode(
                 );
                 return Ok(());
             }
+
+            // Clone the scheduler Arc to move into the thread
             if let Some(ref task_scheduler) = app_state.task_scheduler {
-                if let Ok(scheduler) = task_scheduler.lock() {
-                    match scheduler.test_email_config() {
-                        Ok(_) => {
-                            app_state.status_message = Some(prepare_status_message(
-                                "Test email sent successfully!",
-                                StatusMessageType::Success,
-                                5,
-                            ));
-                        }
-                        Err(e) => {
-                            app_state.status_message = Some(prepare_status_message(
-                                &format!("Failed to send test email: {}", e),
-                                StatusMessageType::Error,
-                                10, // Longer display time for errors
-                            ));
-                        }
+                let scheduler_arc = Arc::clone(task_scheduler);
+                let (tx, rx) = mpsc::channel::<Result<(), String>>();
+
+                thread::spawn(move || {
+                    if let Ok(scheduler) = scheduler_arc.lock() {
+                        let result = scheduler.test_email_config();
+                        let _ = tx.send(result);
+                    } else {
+                        let _ = tx.send(Err("Failed to acquire scheduler lock".to_string()));
                     }
-                }
+                });
+
+                app_state.smtp_test_receiver = Some(rx);
+                app_state.status_message = Some(prepare_status_message(
+                    "Testing SMTP...",
+                    StatusMessageType::Info,
+                    30, // Long enough to cover the 30s timeout
+                ));
             }
         }
         KeyCode::Tab => {

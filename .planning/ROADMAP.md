@@ -75,7 +75,11 @@ Plans:
   1. Entering an invalid date format in the task creation form shows an error message — the application does not panic
   2. Entering a malformed email address in any Task Scheduler field shows an error message — the application does not panic
   3. The SMTP test button returns a user-visible error message when the connection fails — the application does not panic or silently swallow the failure
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Live field validation with red border feedback for date and email fields; cursor-jump on invalid submit
+- [ ] 04-02-PLAN.md — Async SMTP test (fix dead key binding, background thread, "Testing..." indicator, notification result)
 
 ### Phase 5: System Utilities Stability
 **Goal**: The System Utilities module handles all resource query failures gracefully and always presents either a reading or an explicit error — never a crash
@@ -106,6 +110,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Audit | 2/2 | Complete    | 2026-02-23 |
 | 2. Architecture Consolidation | 3/3 | Complete   | 2026-02-24 |
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
-| 4. Task Scheduler Stability | 0/TBD | Not started | - |
+| 4. Task Scheduler Stability | 1/2 | In Progress|  |
 | 5. System Utilities Stability | 0/TBD | Not started | - |
 | 6. Library Migration | 0/TBD | Not started | - |

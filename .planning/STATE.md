@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 3 — Error Handling Foundation (in progress)
+**Current focus:** Phase 4 — Task Scheduler Stability (in progress)
 
 ## Current Position
 
-Phase: 3 of 6 (Error Handling Foundation)
-Plan: 3 of 3 in current phase — PHASE COMPLETE
-Status: Plan 03-03 complete — email config and task file I/O errors wired to TUI notification overlay; SMTP gate with auto-recovery; ERR-02 and ERR-03 satisfied
-Last activity: 2026-02-24 — Plan 03-03 complete (I/O error wiring: Result-returning save/load functions, startup notifications, SMTP gate)
+Phase: 4 of 6 (Task Scheduler Stability)
+Plan: 1 of 1 in current phase — PLAN COMPLETE
+Status: Plan 04-01 complete — live field validation with red-border feedback and Warning notifications for Add Task and Email Config forms; TASK-01 satisfied
+Last activity: 2026-02-24 — Plan 04-01 complete (input validation: task_date_invalid, email_address_invalid, border_style rendering, submit-time notifications)
 
-Progress: [███████░░░] 54%
+Progress: [████████░░] 62%
 
 ## Performance Metrics
 
@@ -30,6 +30,7 @@ Progress: [███████░░░] 54%
 | 01-audit | 2 | 5 min | 2.5 min |
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
+| 04-task-scheduler-stability | 1 | 8 min | 8 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.4 min
@@ -75,6 +76,9 @@ Recent decisions affecting current work:
 - 03-03: add_task() changed from u32 to Result<u32, String> — only caller in main.rs, safe change to propagate save errors
 - 03-03: SMTP gate in event-loop reminder check (not a separate handler) because background thread cannot push to app_state.notifications
 - 03-03: Background thread save_tasks failures use eprintln! as fallback — cannot push to app_state from background thread
+- 04-01: Validation flags reset on Esc but not on successful save — form fields cleared on save; flag persists but immediately clears when field length drops below threshold on next use
+- 04-01: Color::Reset used as default border fallback — matches original Block::default().borders(Borders::ALL) visual without hardcoding a color
+- 04-01: Char/Backspace arms restructured from match expressions to match blocks — required to run post-push validation without duplicating field dispatch logic
 
 ### Pending Todos
 
@@ -87,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 03-03-PLAN.md — email config and task file I/O errors wired to notification overlay; Phase 3 complete
+Stopped at: Completed 04-01-PLAN.md — live input validation with red borders and Warning notifications for Task Scheduler and Email Config forms
 Resume file: None
