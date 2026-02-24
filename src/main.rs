@@ -17,9 +17,6 @@
 
 // Module imports
 mod modules;
-mod network_tools;
-mod password_manager;
-mod system_utilities;
 
 // Crate list
 use crate::modules::task_scheduler::model::{EmailConfig, ReminderType, TaskPriority, TaskScheduler, TaskStatus};
@@ -29,9 +26,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use network_tools::{ping, SpeedTestResult};
+use crate::modules::network_tools::model::{ping, SpeedTestResult};
 use once_cell::sync::Lazy;
-use password_manager::{save_password, PasswordEntry};
+use crate::modules::password_manager::model::{save_password, PasswordEntry};
 use signal_hook::consts::SIGINT;
 use signal_hook::flag;
 use std::io;
@@ -43,7 +40,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use system_utilities::SystemMonitor;
+use crate::modules::system_utilities::model::SystemMonitor;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -193,7 +190,7 @@ struct AppState {
     /// Currently selected network tool
     selected_tool: Option<String>,
     /// Channel receiver for asynchronous speed test results
-    speed_test_receiver: Option<Receiver<network_tools::SpeedTestResult>>,
+    speed_test_receiver: Option<Receiver<crate::modules::network_tools::model::SpeedTestResult>>,
 
     // System Utilities fields
     /// System monitor instance for real-time system information
@@ -203,7 +200,7 @@ struct AppState {
     /// Current view mode in system utilities
     system_view_mode: SystemViewMode,
     /// Snapshot of current system state
-    system_snapshot: Option<system_utilities::SystemSnapshot>,
+    system_snapshot: Option<crate::modules::system_utilities::model::SystemSnapshot>,
     /// Index of selected process in process list
     selected_process_index: usize,
     /// Active confirmation dialogue
@@ -716,7 +713,7 @@ fn handle_normal_mode(
 
             thread::spawn(move || {
                 // Send a status update
-                let _ = tx.send(network_tools::SpeedTestResult::status(
+                let _ = tx.send(crate::modules::network_tools::model::SpeedTestResult::status(
                     "Connecting to speed test servers...",
                 ));
 
@@ -724,7 +721,7 @@ fn handle_normal_mode(
                 thread::sleep(Duration::from_millis(500));
 
                 // Try single file test first
-                match network_tools::measure_speed() {
+                match crate::modules::network_tools::model::measure_speed() {
                     Ok(single_result) => {
                         // Send the initial result
                         let _ = tx.send(SpeedTestResult {
@@ -744,7 +741,7 @@ fn handle_normal_mode(
                             ));
 
                             // Try parallel test
-                            match network_tools::parallel_speed_test() {
+                            match crate::modules::network_tools::model::parallel_speed_test() {
                                 Ok(parallel_result) => {
                                     // Send the final result
                                     let _ = tx.send(parallel_result);
@@ -2490,7 +2487,7 @@ fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
     let text_color = get_text_color();
 
-    match password_manager::retrieve_password() {
+    match crate::modules::password_manager::model::retrieve_password() {
         Ok(passwords) => {
             if passwords.is_empty() {
                 let paragraph = Paragraph::new("No passwords found.")
@@ -2934,7 +2931,7 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 // Helper function to draw process list
 fn draw_process_list<B: Backend>(
     f: &mut Frame<B>,
-    snapshot: &system_utilities::SystemSnapshot,
+    snapshot: &crate::modules::system_utilities::model::SystemSnapshot,
     area: Rect,
 ) {
     // Table headers

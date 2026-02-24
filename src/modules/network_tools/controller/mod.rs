@@ -1,5 +1,5 @@
 use crate::models::app_state::{AppState, InputMode};
-use crate::network_tools::ping;
+use crate::modules::network_tools::model::ping;
 use crossterm::event::KeyCode;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};

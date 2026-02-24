@@ -1,5 +1,5 @@
 use crate::models::app_state::AppState;
-use crate::password_manager::{save_password, PasswordEntry};
+use crate::modules::password_manager::model::{save_password, PasswordEntry};
 use crossterm::event::KeyCode;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
