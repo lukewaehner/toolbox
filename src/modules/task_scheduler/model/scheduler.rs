@@ -204,8 +204,6 @@ pub fn run_scheduler_background_thread(
         loop {
             thread::sleep(Duration::from_secs(check_interval));
 
-            println!("Checking for due reminders...");
-
             if let Ok(scheduler) = scheduler.lock() {
                 let tasks_with_reminders = scheduler.get_tasks_with_pending_reminders();
                 if !tasks_with_reminders.is_empty() {

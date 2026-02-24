@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 6 of 6 (Library Migration) — IN PROGRESS
-Plan: 1 of 2 in current phase — PLAN COMPLETE
-Status: Plan 06-01 complete — Cargo.toml dependency swap done: tui 0.19 removed, standalone crossterm removed, ratatui 0.29 added; cargo fetch resolves cleanly
-Last activity: 2026-02-24 — Plan 06-01 complete (dependency baseline established for source migration in Plan 02)
+Phase: 6 of 6 (Library Migration) — CHECKPOINT PAUSE
+Plan: 2 of 2 in current phase — AWAITING HUMAN VERIFY
+Status: Plan 06-02 tasks 1+2 complete — src/main.rs migrated from tui 0.19 to ratatui 0.29; cargo build succeeds with zero errors; awaiting visual verification of all four module views (Task 3 checkpoint)
+Last activity: 2026-02-24 — Plan 06-02 tasks 1+2 complete (source migration done; human-verify checkpoint)
 
 Progress: [█████████░] 92%
 
@@ -32,7 +32,7 @@ Progress: [█████████░] 92%
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
 | 04-task-scheduler-stability | 2 | 10 min | 5 min |
 | 05-system-utilities-stability | 2 | 6 min | 3 min |
-| 06-library-migration | 1 | 1 min | 1 min |
+| 06-library-migration | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.2 min
@@ -93,6 +93,9 @@ Recent decisions affecting current work:
 - 06-01: ratatui = "0.29" specifier used; 0.29.0 locked in Cargo.lock; 0.30.0 was available but plan targets 0.29
 - 06-01: crossterm removed from Cargo.toml entirely; ratatui re-exports crossterm types; no standalone dep needed
 - 06-01: cargo check not run in this plan — source still uses tui:: imports which will fail until Plan 02 source migration
+- [Phase 06-02]: Table::new widths moved to second argument per ratatui 0.29 API change
+- [Phase 06-02]: Frame<B: Backend> generic removed from all draw/render functions; run_app kept for Terminal<B>
+- [Phase 06-02]: ratatui::crossterm:: re-export used for all crossterm access throughout main.rs
 
 ### Pending Todos
 
@@ -105,5 +108,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-01-PLAN.md — Cargo.toml dependency swap: ratatui 0.29 added, tui removed, crossterm removed; LIB-01 closed; Plan 02 source migration ready
+Stopped at: Checkpoint 06-02 Task 3 — human-verify: cargo build succeeds with zero errors after ratatui migration; awaiting visual verification of all four module views before closing LIB-01
 Resume file: None

@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Error Handling Foundation** - Replace all unwrap()/expect() calls and add terminal drop guard (completed 2026-02-24)
 - [x] **Phase 4: Task Scheduler Stability** - Harden Task Scheduler against bad input and SMTP failures (completed 2026-02-24)
 - [x] **Phase 5: System Utilities Stability** - Harden System Utilities against resource query failures (completed 2026-02-24)
-- [ ] **Phase 6: Library Migration** - Upgrade deprecated tui crate to ratatui
+- [x] **Phase 6: Library Migration** - Upgrade deprecated tui crate to ratatui (completed 2026-02-24)
 
 ## Phase Details
 
@@ -120,4 +120,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
 | 4. Task Scheduler Stability | 2/2 | Complete   | 2026-02-24 |
 | 5. System Utilities Stability | 2/2 | Complete   | 2026-02-24 |
-| 6. Library Migration | 1/2 | In Progress|  |
+| 6. Library Migration | 2/2 | Complete   | 2026-02-24 |

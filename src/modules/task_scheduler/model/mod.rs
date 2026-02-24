@@ -611,8 +611,6 @@ impl TaskScheduler {
         let mut triggered_reminders = Vec::new();
         let now = Utc::now().timestamp();
         
-        println!("Current time (UTC): {}", format_timestamp(now));
-        println!("Checking for reminders that should trigger...");
 
         // First, collect tasks and reminders to process
         let mut notification_tasks = Vec::new();
@@ -896,7 +894,6 @@ pub fn run_scheduler_background_thread(
         loop {
             thread::sleep(Duration::from_secs(30)); // Check every 30 seconds (for testing)
             
-            println!("Checking for due reminders...");
             let mut triggered_reminders = Vec::new();
 
             // Check for reminders in a separate scope to release the lock
