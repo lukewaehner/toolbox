@@ -12,7 +12,7 @@
 //!
 //! ## Architecture
 //!
-//! The application uses a Terminal User Interface (TUI) built with the `tui` and `crossterm` crates.
+//! The application uses a Terminal User Interface (TUI) built with the `ratatui` crate.
 //! It follows an event-driven architecture with different operational modes for each feature.
 
 // Module imports
@@ -21,7 +21,7 @@ mod modules;
 // Crate list
 use crate::modules::task_scheduler::model::{EmailConfig, ReminderType, TaskPriority, TaskScheduler, TaskStatus};
 use chrono::{Local, NaiveDateTime, Utc};
-use crossterm::{
+use ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -42,11 +42,11 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 use crate::modules::system_utilities::model::SystemMonitor;
-use tui::{
+use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Block, Borders, Cell, Clear, Gauge, Paragraph, Row, Table},
     Frame, Terminal,
 };
@@ -440,11 +440,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Install panic hook before enabling raw mode so it fires on the panic path
     std::panic::set_hook(Box::new(|info| {
         // Restore terminal synchronously — ignore errors since we're already panicking
-        let _ = crossterm::terminal::disable_raw_mode();
-        let _ = crossterm::execute!(
+        let _ = ratatui::crossterm::terminal::disable_raw_mode();
+        let _ = ratatui::crossterm::execute!(
             std::io::stdout(),
-            crossterm::terminal::LeaveAlternateScreen,
-            crossterm::event::DisableMouseCapture
+            ratatui::crossterm::terminal::LeaveAlternateScreen,
+            ratatui::crossterm::event::DisableMouseCapture
         );
 
         // Format the crash message
@@ -491,8 +491,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let r = running.clone();
     flag::register(SIGINT, r)?;
 
-    let backend = tui::backend::CrosstermBackend::new(stdout);
-    let mut terminal = tui::Terminal::new(backend)?;
+    let backend = ratatui::backend::CrosstermBackend::new(stdout);
+    let mut terminal = ratatui::Terminal::new(backend)?;
 
     let mut app_state = AppState::default();
     app_state.task_scheduler = Some(task_scheduler.clone());
@@ -2085,7 +2085,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                 });
 
                 // Create a stateful table
-                let mut state = tui::widgets::TableState::default();
+                let mut state = ratatui::widgets::TableState::default();
 
                 // Find the selected task index
                 let selected_index = if let Some(selected_id) = app_state.selected_task_id {
@@ -2773,11 +2773,11 @@ static DARK_MODE: Lazy<bool> = Lazy::new(|| {
     String::from_utf8_lossy(&output.stdout).trim() == "true"
 });
 
-fn get_text_color() -> tui::style::Color {
+fn get_text_color() -> ratatui::style::Color {
     if *DARK_MODE {
-        tui::style::Color::White
+        ratatui::style::Color::White
     } else {
-        tui::style::Color::Black
+        ratatui::style::Color::Black
     }
 }
 
@@ -3123,7 +3123,7 @@ fn draw_confirmation_dialogue<B: Backend>(f: &mut Frame<B>, app_state: &AppState
             ]),
         ];
 
-        let content = Paragraph::new(message).alignment(tui::layout::Alignment::Center);
+        let content = Paragraph::new(message).alignment(ratatui::layout::Alignment::Center);
 
         f.render_widget(content, content_area);
     }
@@ -3663,7 +3663,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
             });
 
             // Create a stateful table
-            let mut state = tui::widgets::TableState::default();
+            let mut state = ratatui::widgets::TableState::default();
 
             // Find the currently selected process by PID
             let selected_index = if let Some(selected_pid) = app_state.selected_process_pid {
@@ -3983,7 +3983,7 @@ fn render_notifications<B: Backend>(f: &mut Frame<B>, notifications: &[Notificat
             break; // terminal too small to render any notification
         }
 
-        let area = tui::layout::Rect::new(x, y, width, cell_height);
+        let area = ratatui::layout::Rect::new(x, y, width, cell_height);
 
         let (border_color, text_color) = match notification.severity {
             NotificationSeverity::Error => (Color::Red, Color::Red),
