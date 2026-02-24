@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 5 of 6 (System Utilities Stability) — COMPLETE
-Plan: 2 of 2 in current phase — PLAN COMPLETE
-Status: Plan 05-02 complete — all four System Utilities draw functions updated with per-panel N/A rendering; SYS-01 and SYS-02 requirements closed
-Last activity: 2026-02-24 — Plan 05-02 complete (N/A gauges, error-row tables, disk error paragraph, per-row N/A fallbacks for zero fields)
+Phase: 6 of 6 (Library Migration) — IN PROGRESS
+Plan: 1 of 2 in current phase — PLAN COMPLETE
+Status: Plan 06-01 complete — Cargo.toml dependency swap done: tui 0.19 removed, standalone crossterm removed, ratatui 0.29 added; cargo fetch resolves cleanly
+Last activity: 2026-02-24 — Plan 06-01 complete (dependency baseline established for source migration in Plan 02)
 
-Progress: [█████████░] 85%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 4.2 min
-- Total execution time: 46 min
+- Total plans completed: 12
+- Average duration: 3.9 min
+- Total execution time: 47 min
 
 **By Phase:**
 
@@ -32,6 +32,7 @@ Progress: [█████████░] 85%
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
 | 04-task-scheduler-stability | 2 | 10 min | 5 min |
 | 05-system-utilities-stability | 2 | 6 min | 3 min |
+| 06-library-migration | 1 | 1 min | 1 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.2 min
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - 05-02: draw_process_list process_error: bool parameter passed from call site — keeps helper reusable and signature explicit vs accessing app_state directly
 - 05-02: disk_panel_error branch ordered before disks.is_empty() — error flag takes priority over empty-disk state; both produce visible output, error is more specific
 - 05-02: Per-row N/A fallback uses zero sentinel (mem_mb==0, run_time==0, disk_kb==0) — consistent with 05-01's sentinel-value-failure-detection pattern
+- 06-01: ratatui = "0.29" specifier used; 0.29.0 locked in Cargo.lock; 0.30.0 was available but plan targets 0.29
+- 06-01: crossterm removed from Cargo.toml entirely; ratatui re-exports crossterm types; no standalone dep needed
+- 06-01: cargo check not run in this plan — source still uses tui:: imports which will fail until Plan 02 source migration
 
 ### Pending Todos
 
@@ -101,5 +105,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 05-02-PLAN.md — N/A draw rendering for all four System Utilities panels; SYS-01 and SYS-02 closed; Phase 5 complete
+Stopped at: Completed 06-01-PLAN.md — Cargo.toml dependency swap: ratatui 0.29 added, tui removed, crossterm removed; LIB-01 closed; Plan 02 source migration ready
 Resume file: None

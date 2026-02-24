@@ -36,7 +36,7 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 
 ### Library Migration
 
-- [ ] **LIB-01**: `tui` crate (0.19) replaced with `ratatui` (drop-in upgrade, functionally equivalent)
+- [x] **LIB-01**: `tui` crate (0.19) replaced with `ratatui` (drop-in upgrade, functionally equivalent)
 
 ## v2 Requirements
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SYS-01 | Phase 5 | Complete |
 | SYS-02 | Phase 5 | Complete |
 | TERM-01 | Phase 3 | Complete |
-| LIB-01 | Phase 6 | Pending |
+| LIB-01 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 13 total

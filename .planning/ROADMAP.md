@@ -102,12 +102,16 @@ Plans:
   1. Cargo.toml references ratatui, not tui; tui is no longer a dependency
   2. The binary compiles without errors or warnings related to the library swap
   3. All four modules (Task Scheduler, System Utilities, Password Manager, Network Tools) render their views correctly after the upgrade — no visual regressions
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Swap tui->ratatui and remove standalone crossterm in Cargo.toml
+- [ ] 06-02-PLAN.md — Migrate src/main.rs from tui 0.19 to ratatui 0.29 API (imports, Frame generics, Spans->Line)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -116,4 +120,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
 | 4. Task Scheduler Stability | 2/2 | Complete   | 2026-02-24 |
 | 5. System Utilities Stability | 2/2 | Complete   | 2026-02-24 |
-| 6. Library Migration | 0/TBD | Not started | - |
+| 6. Library Migration | 1/2 | In Progress|  |
