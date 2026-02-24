@@ -326,7 +326,7 @@ pub fn parallel_speed_test() -> Result<SpeedTestResult, Box<dyn std::error::Erro
             match download_chunk(&url) {
                 Ok(bytes) => {
                     // Update the total bytes counter
-                    let mut total = total_bytes_clone.lock().unwrap();
+                    let mut total = total_bytes_clone.lock().unwrap_or_else(|e| e.into_inner());
                     *total += bytes;
                     println!("Thread {} downloaded {} bytes", i, bytes);
                     true
@@ -353,7 +353,7 @@ pub fn parallel_speed_test() -> Result<SpeedTestResult, Box<dyn std::error::Erro
     let duration = start.elapsed().as_secs_f64();
 
     // Get total bytes downloaded
-    let total_bytes = *total_bytes.lock().unwrap();
+    let total_bytes = *total_bytes.lock().unwrap_or_else(|e| e.into_inner());
 
     // Check if any downloads succeeded
     if success_count == 0 || total_bytes == 0 {

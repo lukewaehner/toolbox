@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 2 of 6 (Architecture Consolidation)
-Plan: 2 of 5 in current phase
-Status: Plan 02-02 complete — network_tools.rs, password_manager.rs, system_utilities.rs deleted; all imports via MVC model paths
-Last activity: 2026-02-24 — Plan 02-02 complete (three legacy files deleted, imports rewired)
+Plan: 3 of 5 in current phase
+Status: Plan 02-03 complete — app.rs and backups/ deleted; prepare_status_message pub(crate) in main.rs; zero crate::app:: references; main.rs is sole crate root
+Last activity: 2026-02-24 — Plan 02-03 complete (app.rs + backups/ deleted, crate::app:: references fixed)
 
-Progress: [████░░░░░░] 27%
+Progress: [█████░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 3.5 min
-- Total execution time: 19 min
+- Total plans completed: 5
+- Average duration: 3.4 min
+- Total execution time: 22 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-audit | 2 | 5 min | 2.5 min |
-| 02-architecture-consolidation | 2 | 14 min | 7 min |
+| 02-architecture-consolidation | 3 | 17 min | 5.7 min |
 
 **Recent Trend:**
-- Last 5 plans: 3.5 min
+- Last 5 plans: 3.4 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 - 02-02: MVC view/controller sub-modules disabled in mod.rs for network_tools, password_manager, system_utilities — they reference crate::models, crate::ui, crate::shared which don't exist; only model exposed
 - 02-02: modules/mod.rs now exposes all four modules; view/controller per-module files will need separate cleanup in later plans
 - 02-02: bare network_tools::, system_utilities::, password_manager:: calls in main.rs replaced with full crate::modules::*::model:: paths
+- 02-03: prepare_status_message made pub(crate) in main.rs — MVC submodules call it via crate::prepare_status_message without going through deleted app.rs
+- 02-03: legacy handlers/ files also updated for consistency — zero crate::app:: references across all src/ files
+- 02-03: mod app; was already absent from main.rs (audit was correct — app.rs was dead code, not declared as module)
 
 ### Pending Todos
 
@@ -71,10 +74,10 @@ None yet.
 ### Blockers/Concerns
 
 - 105+ unwrap() sites in Phase 3 is a large sweep; may need to split into sub-plans by module
-- MVC view/controller files for network_tools, password_manager, system_utilities still reference crate::models, crate::ui, crate::shared, crate::app — these need cleanup in later plans (currently compilation-disabled)
+- MVC view/controller files for network_tools, password_manager, system_utilities still reference crate::models, crate::ui, crate::shared — these need cleanup in later plans (currently compilation-disabled; crate::app references now fixed)
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 02-02-PLAN.md — network_tools/password_manager/system_utilities legacy files deleted, imports rewired
+Stopped at: Completed 02-03-PLAN.md — app.rs and backups/ deleted, prepare_status_message pub(crate), zero crate::app:: references
 Resume file: None

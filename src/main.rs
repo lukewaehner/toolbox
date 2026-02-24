@@ -691,7 +691,7 @@ fn run_app<B: Backend>(
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                         // When the sender is dropped, reset the mode.
                         if app_state.result.is_none()
-                            || app_state.result.as_ref().unwrap().contains("Starting")
+                            || app_state.result.as_deref().map(|s| s.contains("Starting")).unwrap_or(false)
                         {
                             app_state.result =
                                 Some("Speed test failed or was cancelled.".to_string());
@@ -1438,9 +1438,10 @@ fn handle_viewing_tasks_mode(
                     // Sort tasks by due date
                     let mut task_ids: Vec<u32> = tasks.iter().map(|task| task.id).collect();
                     task_ids.sort_by(|a, b| {
-                        let task_a = scheduler.get_task(*a).unwrap();
-                        let task_b = scheduler.get_task(*b).unwrap();
-                        task_a.due_date.cmp(&task_b.due_date)
+                        match (scheduler.get_task(*a), scheduler.get_task(*b)) {
+                            (Some(task_a), Some(task_b)) => task_a.due_date.cmp(&task_b.due_date),
+                            _ => std::cmp::Ordering::Equal,
+                        }
                     });
 
                     if let Some(selected_id) = app_state.selected_task_id {
@@ -1467,9 +1468,10 @@ fn handle_viewing_tasks_mode(
                     // Sort tasks by due date
                     let mut task_ids: Vec<u32> = tasks.iter().map(|task| task.id).collect();
                     task_ids.sort_by(|a, b| {
-                        let task_a = scheduler.get_task(*a).unwrap();
-                        let task_b = scheduler.get_task(*b).unwrap();
-                        task_a.due_date.cmp(&task_b.due_date)
+                        match (scheduler.get_task(*a), scheduler.get_task(*b)) {
+                            (Some(task_a), Some(task_b)) => task_a.due_date.cmp(&task_b.due_date),
+                            _ => std::cmp::Ordering::Equal,
+                        }
                     });
 
                     if let Some(selected_id) = app_state.selected_task_id {
@@ -2451,13 +2453,15 @@ fn get_text_color() -> tui::style::Color {
 }
 
 fn is_dark_mode() -> bool {
-    let output = Command::new("osascript")
+    let Ok(output) = Command::new("osascript")
         .arg("-e")
         .arg(
             "tell application \"System Events\" to tell appearance preferences to return dark mode",
         )
         .output()
-        .expect("Failed to execute osascript");
+    else {
+        return false; // fallback if osascript unavailable
+    };
 
     let result = String::from_utf8_lossy(&output.stdout);
     result.trim() == "true"
