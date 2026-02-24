@@ -461,6 +461,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app_state = AppState::default();
     app_state.task_scheduler = Some(task_scheduler.clone());
 
+    // Check for startup load errors and push notifications
+    let startup_email_err = app_state
+        .task_scheduler
+        .as_ref()
+        .and_then(|arc| arc.lock().ok())
+        .and_then(|sched| sched.email_config_load_error.clone());
+    let startup_task_err = app_state
+        .task_scheduler
+        .as_ref()
+        .and_then(|arc| arc.lock().ok())
+        .and_then(|sched| sched.task_load_error.clone());
+    if let Some(err) = startup_email_err {
+        app_state.push_notification(
+            format!("Email config load failed: {}. SMTP features disabled.", err),
+            NotificationSeverity::Warning,
+        );
+    }
+    if let Some(err) = startup_task_err {
+        app_state.push_notification(
+            format!("Task file load failed: {}. Starting with empty task list.", err),
+            NotificationSeverity::Warning,
+        );
+    }
+
     let res = run_app(&mut terminal, running, app_state);
 
     if let Err(err) = res {
@@ -630,31 +654,51 @@ fn run_app<B: Backend>(
             }
         }
 
-        if let Some(ref task_scheduler) = app_state.task_scheduler {
+        {
             static LAST_REMINDER_CHECK: Lazy<Mutex<std::time::Instant>> =
                 Lazy::new(|| Mutex::new(std::time::Instant::now()));
 
-            if let Ok(mut last_check) = LAST_REMINDER_CHECK.lock() {
-                if last_check.elapsed() >= Duration::from_secs(5) {
-                    let mut triggered_reminders = Vec::new();
+            if app_state.task_scheduler.is_some() {
+                if let Ok(mut last_check) = LAST_REMINDER_CHECK.lock() {
+                    if last_check.elapsed() >= Duration::from_secs(5) {
+                        // Gate: SMTP-dependent features are disabled when email config load failed.
+                        // Cleared automatically when set_email_config() succeeds — no restart needed.
+                        let smtp_disabled = app_state
+                            .task_scheduler
+                            .as_ref()
+                            .and_then(|arc| arc.lock().ok())
+                            .map(|sched| sched.email_config_load_error.is_some())
+                            .unwrap_or(false);
 
-                    if let Ok(mut sched) = task_scheduler.lock() {
-                        triggered_reminders = sched.check_reminders();
-                    }
+                        let triggered_reminders = app_state
+                            .task_scheduler
+                            .as_ref()
+                            .and_then(|arc| arc.lock().ok())
+                            .map(|mut sched| sched.check_reminders())
+                            .unwrap_or_default();
 
-                    if !triggered_reminders.is_empty() {
-                        let reminder_count = triggered_reminders.len();
-                        app_state.status_message = Some(prepare_status_message(
-                            &format!(
-                                "{} reminder{} triggered",
-                                reminder_count,
-                                if reminder_count == 1 { "" } else { "s" }
-                            ),
-                            StatusMessageType::Info,
-                            5,
-                        ));
+                        if !triggered_reminders.is_empty() {
+                            let reminder_count = triggered_reminders.len();
+                            app_state.status_message = Some(prepare_status_message(
+                                &format!(
+                                    "{} reminder{} triggered",
+                                    reminder_count,
+                                    if reminder_count == 1 { "" } else { "s" }
+                                ),
+                                StatusMessageType::Info,
+                                5,
+                            ));
+
+                            // Warn if any triggered reminders are email-type but SMTP is disabled
+                            if smtp_disabled {
+                                app_state.push_notification(
+                                    "SMTP unavailable: email config failed to load. Save a valid config to re-enable.",
+                                    NotificationSeverity::Warning,
+                                );
+                            }
+                        }
+                        *last_check = std::time::Instant::now();
                     }
-                    *last_check = std::time::Instant::now();
                 }
             }
         }
@@ -900,14 +944,22 @@ fn handle_editing_mode(
                 password: app_state.password.clone(),
             };
 
-            if let Err(e) = save_password(&entry) {
-                app_state.error_message = Some(format!("Error saving password: {}", e));
-            } else {
-                app_state.error_message = Some("Password saved successfully.".to_string());
-                app_state.service.clear();
-                app_state.username.clear();
-                app_state.password.clear();
-                app_state.input_mode = InputMode::Normal;
+            match save_password(&entry) {
+                Ok(()) => {
+                    app_state.push_notification("Password saved.", NotificationSeverity::Warning);
+                    app_state.error_message = Some("Password saved successfully.".to_string());
+                    app_state.service.clear();
+                    app_state.username.clear();
+                    app_state.password.clear();
+                    app_state.input_mode = InputMode::Normal;
+                }
+                Err(e) => {
+                    app_state.push_notification(
+                        format!("Password save failed: {}", e),
+                        NotificationSeverity::Error,
+                    );
+                    app_state.error_message = Some(format!("Error saving password: {}", e));
+                }
             }
         }
         KeyCode::Char(c) => match app_state.input_field {
@@ -960,6 +1012,21 @@ fn handle_email_config_mode(
             app_state.input_mode = InputMode::Normal;
         }
         KeyCode::Char('t') if app_state.email_config_field == 99 => {
+            // Gate: SMTP-dependent features are disabled when email config load failed.
+            // Cleared automatically when set_email_config() succeeds — no restart needed.
+            let smtp_load_failed = app_state
+                .task_scheduler
+                .as_ref()
+                .and_then(|arc| arc.lock().ok())
+                .map(|sched| sched.email_config_load_error.is_some())
+                .unwrap_or(false);
+            if smtp_load_failed {
+                app_state.push_notification(
+                    "SMTP unavailable: email config failed to load. Save a valid config to re-enable.",
+                    NotificationSeverity::Warning,
+                );
+                return Ok(());
+            }
             if let Some(ref task_scheduler) = app_state.task_scheduler {
                 if let Ok(scheduler) = task_scheduler.lock() {
                     match scheduler.test_email_config() {
@@ -1055,16 +1122,30 @@ fn handle_email_config_mode(
                 retry_delay_seconds: 300,
             };
 
-            // Set config
-            if let Some(ref task_scheduler) = app_state.task_scheduler {
-                if let Ok(mut scheduler) = task_scheduler.lock() {
-                    scheduler.set_email_config(config);
+            // Set config — extract result first to avoid borrow conflicts
+            let save_result = app_state
+                .task_scheduler
+                .as_ref()
+                .and_then(|arc| arc.lock().ok())
+                .map(|mut scheduler| scheduler.set_email_config(config));
+            match save_result {
+                Some(Ok(())) => {
+                    // email_config_load_error is now None — SMTP features re-enable automatically
                     app_state.status_message = Some(prepare_status_message(
                         "Email configuration saved",
                         StatusMessageType::Success,
                         3,
                     ));
                     app_state.input_mode = InputMode::Normal;
+                }
+                Some(Err(e)) => {
+                    app_state.push_notification(
+                        format!("Email config save failed: {}", e),
+                        NotificationSeverity::Error,
+                    );
+                }
+                None => {
+                    // Scheduler not initialized — should not happen in normal flow
                 }
             }
         }
@@ -1297,30 +1378,47 @@ fn handle_adding_task_mode(
                     .filter(|tag| !tag.is_empty())
                     .collect();
 
-                // Add task
-                if let Some(ref task_scheduler) = app_state.task_scheduler {
-                    if let Ok(mut scheduler) = task_scheduler.lock() {
+                // Add task — extract result before borrowing app_state mutably
+                let add_result = app_state.task_scheduler.as_ref().and_then(|arc| {
+                    arc.lock().ok().map(|mut scheduler| {
                         scheduler.add_task(
                             app_state.task_title.clone(),
                             app_state.task_description.clone(),
                             timestamp,
                             app_state.task_priority.clone(),
                             tags,
-                        );
-
+                        )
+                    })
+                });
+                match add_result {
+                    Some(Ok(_)) => {
                         // Success message
                         app_state.status_message = Some(prepare_status_message(
                             "Task added successfully",
                             StatusMessageType::Success,
                             3,
                         ));
-
                         // Clear fields and return to normal mode
                         app_state.task_title.clear();
                         app_state.task_description.clear();
                         app_state.task_due_date.clear();
                         app_state.task_tags.clear();
                         app_state.input_mode = InputMode::Normal;
+                    }
+                    Some(Err(e)) => {
+                        app_state.push_notification(
+                            format!("Task save failed: {}. Changes preserved in memory.", e),
+                            NotificationSeverity::Error,
+                        );
+                        // Still clear fields and continue — task is in memory
+                        app_state.task_title.clear();
+                        app_state.task_description.clear();
+                        app_state.task_due_date.clear();
+                        app_state.task_tags.clear();
+                        app_state.input_mode = InputMode::Normal;
+                    }
+                    None => {
+                        // Scheduler not initialized
                     }
                 }
             } else {
@@ -1377,52 +1475,74 @@ fn handle_viewing_tasks_mode(
             }
         }
         KeyCode::Char('d') => {
-            // Delete selected task
+            // Delete selected task — extract result before borrowing app_state mutably
             if let Some(task_id) = app_state.selected_task_id {
-                if let Some(ref task_scheduler) = app_state.task_scheduler {
-                    if let Ok(mut scheduler) = task_scheduler.lock() {
-                        if let Err(e) = scheduler.delete_task(task_id) {
-                            app_state.status_message = Some(prepare_status_message(
-                                &format!("Error: {}", e),
-                                StatusMessageType::Error,
-                                3,
-                            ));
-                        } else {
-                            app_state.status_message = Some(prepare_status_message(
-                                "Task deleted successfully",
-                                StatusMessageType::Success,
-                                3,
-                            ));
-                            app_state.selected_task_id = None;
-                        }
+                let delete_result = app_state
+                    .task_scheduler
+                    .as_ref()
+                    .and_then(|arc| arc.lock().ok())
+                    .map(|mut scheduler| scheduler.delete_task(task_id));
+                match delete_result {
+                    Some(Ok(())) => {
+                        app_state.status_message = Some(prepare_status_message(
+                            "Task deleted successfully",
+                            StatusMessageType::Success,
+                            3,
+                        ));
+                        app_state.selected_task_id = None;
                     }
+                    Some(Err(ref e)) if e.contains("save") || e.contains("write") || e.contains("Error") => {
+                        // Save failure — task removed from memory but disk write failed
+                        let msg = format!("Task save failed: {}. Changes preserved in memory.", e);
+                        app_state.push_notification(msg, NotificationSeverity::Error);
+                        app_state.selected_task_id = None;
+                    }
+                    Some(Err(e)) => {
+                        app_state.status_message = Some(prepare_status_message(
+                            &format!("Error: {}", e),
+                            StatusMessageType::Error,
+                            3,
+                        ));
+                    }
+                    None => {}
                 }
             }
         }
         KeyCode::Char('c') => {
-            // Complete selected task
+            // Complete selected task — extract result before borrowing app_state mutably
             if let Some(task_id) = app_state.selected_task_id {
-                if let Some(ref task_scheduler) = app_state.task_scheduler {
-                    if let Ok(mut scheduler) = task_scheduler.lock() {
-                        if let Some(task) = scheduler.get_task(task_id) {
-                            let mut updated_task = task.clone();
-                            updated_task.status = TaskStatus::Completed;
-
-                            if let Err(e) = scheduler.update_task(task_id, updated_task) {
-                                app_state.status_message = Some(prepare_status_message(
-                                    &format!("Error: {}", e),
-                                    StatusMessageType::Error,
-                                    3,
-                                ));
-                            } else {
-                                app_state.status_message = Some(prepare_status_message(
-                                    "Task marked as completed",
-                                    StatusMessageType::Success,
-                                    3,
-                                ));
-                            }
-                        }
+                let update_result = app_state.task_scheduler.as_ref().and_then(|arc| {
+                    arc.lock().ok().and_then(|mut scheduler| {
+                        // Clone the task first to release the immutable borrow before calling update
+                        let updated = scheduler.get_task(task_id).map(|task| {
+                            let mut t = task.clone();
+                            t.status = TaskStatus::Completed;
+                            t
+                        });
+                        updated.map(|updated_task| scheduler.update_task(task_id, updated_task))
+                    })
+                });
+                match update_result {
+                    Some(Ok(())) => {
+                        app_state.status_message = Some(prepare_status_message(
+                            "Task marked as completed",
+                            StatusMessageType::Success,
+                            3,
+                        ));
                     }
+                    Some(Err(ref e)) if e.contains("save") || e.contains("write") || e.contains("Error") => {
+                        // Save failure — in-memory state updated but disk write failed
+                        let msg = format!("Task save failed: {}. Changes preserved in memory.", e);
+                        app_state.push_notification(msg, NotificationSeverity::Error);
+                    }
+                    Some(Err(e)) => {
+                        app_state.status_message = Some(prepare_status_message(
+                            &format!("Error: {}", e),
+                            StatusMessageType::Error,
+                            3,
+                        ));
+                    }
+                    None => {}
                 }
             }
         }

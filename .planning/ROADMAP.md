@@ -63,7 +63,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Install panic hook (crash log + terminal restore) and sweep all .unwrap()/.expect() from compiled code tree
+- [x] 03-01-PLAN.md — Install panic hook (crash log + terminal restore) and sweep all .unwrap()/.expect() from compiled code tree
 - [ ] 03-02-PLAN.md — Build notification widget infrastructure (bottom-right stacked, red/yellow, 5s auto-dismiss)
 - [ ] 03-03-PLAN.md — Propagate email config and task/password file I/O errors to notification layer
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Audit | 2/2 | Complete    | 2026-02-23 |
 | 2. Architecture Consolidation | 3/3 | Complete   | 2026-02-24 |
-| 3. Error Handling Foundation | 0/3 | Not started | - |
+| 3. Error Handling Foundation | 1/3 | In progress | - |
 | 4. Task Scheduler Stability | 0/TBD | Not started | - |
 | 5. System Utilities Stability | 0/TBD | Not started | - |
 | 6. Library Migration | 0/TBD | Not started | - |

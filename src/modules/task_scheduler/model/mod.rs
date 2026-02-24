@@ -151,6 +151,8 @@ pub struct TaskScheduler {
     file_path: String,
     email_config: Option<EmailConfig>,
     sms_config: Option<SmsConfig>,
+    pub email_config_load_error: Option<String>,
+    pub task_load_error: Option<String>,
 }
 
 impl TaskScheduler {
@@ -169,9 +171,14 @@ impl TaskScheduler {
         Ok(())
     }
 
-    pub fn set_email_config(&mut self, config: EmailConfig) {
+    pub fn set_email_config(&mut self, config: EmailConfig) -> Result<(), String> {
         self.email_config = Some(config.clone());
-        self.save_email_config();
+        let result = self.save_email_config();
+        if result.is_ok() {
+            // Clear the load-error flag so SMTP features re-enable without restart
+            self.email_config_load_error = None;
+        }
+        result
     }
 
     pub fn test_email_config(&self) -> Result<(), String> {
@@ -286,7 +293,7 @@ impl TaskScheduler {
         }
     }
 
-    fn save_email_config(&self) {
+    pub(crate) fn save_email_config(&self) -> Result<(), String> {
         if let Some(ref config) = self.email_config {
             // Create a file path based on your application's config directory
             let config_dir = std::path::Path::new(&self.file_path)
@@ -294,74 +301,51 @@ impl TaskScheduler {
                 .unwrap_or_else(|| std::path::Path::new("."));
             let config_path = config_dir.join("email_config.json");
 
-            println!("Saving email config to: {:?}", config_path); // Debug print
-
             // Serialize the config
-            match serde_json::to_string(config) {
-                Ok(contents) => {
-                    println!("Serialized config: {}", contents); // Debug print
-                    match std::fs::File::create(&config_path) {
-                        Ok(mut file) => {
-                            if let Err(e) =
-                                std::io::Write::write_all(&mut file, contents.as_bytes())
-                            {
-                                eprintln!("Error writing to email config file: {}", e);
-                            } else {
-                                println!("Successfully wrote email config file");
-                                // Debug print
-                            }
-                        }
-                        Err(e) => eprintln!("Error creating email config file: {}", e),
-                    }
-                }
-                Err(e) => eprintln!("Error serializing email config: {}", e),
-            }
+            let contents = serde_json::to_string(config)
+                .map_err(|e| format!("Error serializing email config: {}", e))?;
+
+            let mut file = std::fs::File::create(&config_path)
+                .map_err(|e| format!("Error creating email config file: {}", e))?;
+
+            std::io::Write::write_all(&mut file, contents.as_bytes())
+                .map_err(|e| format!("Error writing to email config file: {}", e))?;
+
+            Ok(())
         } else {
-            println!("No email config to save"); // Debug print
+            Ok(())
         }
     }
 
-    fn load_email_config(&mut self) {
+    pub(crate) fn load_email_config(&mut self) -> Result<(), String> {
         // Create a file path based on your application's config directory
         let config_dir = std::path::Path::new(&self.file_path)
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
         let config_path = config_dir.join("email_config.json");
 
-        println!("Attempting to load email config from: {:?}", config_path);
-
-        if config_path.exists() {
-            println!("Email config file exists!");
-            match std::fs::read_to_string(&config_path) {
-                Ok(contents) => {
-                    if contents.trim().is_empty() {
-                        eprintln!("Email config file is empty");
-                        return;
-                    }
-                    
-                    println!("Read email config file contents: {}", contents);
-                    match serde_json::from_str::<EmailConfig>(&contents) {
-                        Ok(config) => {
-                            // Validate that we have the minimum required fields
-                            if config.email.is_empty() || config.smtp_server.is_empty() {
-                                eprintln!("Email config is missing required fields");
-                                return;
-                            }
-                            
-                            println!("Successfully parsed email config");
-                            self.email_config = Some(config);
-                        }
-                        Err(e) => {
-                            eprintln!("Error parsing email config: {}", e);
-                            eprintln!("Config content: {}", contents);
-                        }
-                    }
-                }
-                Err(e) => eprintln!("Error reading email config file: {}", e),
-            }
-        } else {
-            println!("Email config file does not exist at path: {:?}", config_path);
+        if !config_path.exists() {
+            // No config file yet — not an error, just no config loaded
+            return Ok(());
         }
+
+        let contents = std::fs::read_to_string(&config_path)
+            .map_err(|e| format!("Error reading email config file: {}", e))?;
+
+        if contents.trim().is_empty() {
+            return Err("Email config file is empty".to_string());
+        }
+
+        let config = serde_json::from_str::<EmailConfig>(&contents)
+            .map_err(|e| format!("Error parsing email config: {}", e))?;
+
+        // Validate that we have the minimum required fields
+        if config.email.is_empty() || config.smtp_server.is_empty() {
+            return Err("Email config is missing required fields".to_string());
+        }
+
+        self.email_config = Some(config);
+        Ok(())
     }
 
     pub fn set_sms_config(&mut self, config: SmsConfig) {
@@ -536,15 +520,17 @@ impl TaskScheduler {
             file_path: file_path.to_string(),
             email_config: None,
             sms_config: None,
+            email_config_load_error: None,
+            task_load_error: None,
         };
 
-        // Load existing tasks if file exists
-        scheduler.load_tasks();
+        // Load existing tasks if file exists; capture any load error
+        scheduler.task_load_error = scheduler.load_tasks().err();
 
-        // Load email configuration
-        scheduler.load_email_config();
+        // Load email configuration; capture any load error
+        scheduler.email_config_load_error = scheduler.load_email_config().err();
 
-        // Load SMS configuration
+        // Load SMS configuration (best-effort; errors not surfaced yet)
         scheduler.load_sms_config();
 
         scheduler
@@ -557,15 +543,15 @@ impl TaskScheduler {
         due_date: i64,
         priority: TaskPriority,
         tags: Vec<String>,
-    ) -> u32 {
+    ) -> Result<u32, String> {
         let id = self.next_id;
         let task = Task::new(id, title, description, due_date, priority, tags);
 
         self.tasks.insert(id, task);
         self.next_id += 1;
-        self.save_tasks();
+        self.save_tasks()?;
 
-        id
+        Ok(id)
     }
 
     pub fn update_task(&mut self, id: u32, updated_task: Task) -> Result<(), String> {
@@ -574,7 +560,7 @@ impl TaskScheduler {
         }
 
         self.tasks.insert(id, updated_task);
-        self.save_tasks();
+        self.save_tasks()?;
 
         Ok(())
     }
@@ -585,7 +571,7 @@ impl TaskScheduler {
         }
 
         self.tasks.remove(&id);
-        self.save_tasks();
+        self.save_tasks()?;
 
         Ok(())
     }
@@ -616,7 +602,7 @@ impl TaskScheduler {
             .get_mut(&task_id)
             .ok_or_else(|| format!("Task with ID {} not found", task_id))?;
         task.add_reminder(reminder_time, reminder_type);
-        self.save_tasks();
+        self.save_tasks()?;
 
         Ok(())
     }
@@ -737,7 +723,9 @@ impl TaskScheduler {
         // Save task changes to file
         if !triggered_reminders.is_empty() {
             println!("Saving tasks after processing reminders");
-            self.save_tasks();
+            if let Err(e) = self.save_tasks() {
+                eprintln!("Warning: failed to save tasks after reminder check: {}", e);
+            }
         }
 
         triggered_reminders
@@ -757,8 +745,10 @@ impl TaskScheduler {
                 task.reminders[reminder_index].sent = true;
                 
                 // Save tasks after modification
-                self.save_tasks();
-                
+                if let Err(e) = self.save_tasks() {
+                    eprintln!("Warning: failed to save tasks after marking reminder sent: {}", e);
+                }
+
                 println!("Marked reminder #{} for task '{}' as sent", reminder_index + 1, task_title);
                 Ok(())
             } else {
@@ -859,40 +849,33 @@ impl TaskScheduler {
         }
     }
 
-    fn load_tasks(&mut self) {
+    fn load_tasks(&mut self) -> Result<(), String> {
         if !Path::new(&self.file_path).exists() {
-            return;
+            return Ok(());
         }
 
-        match fs::read_to_string(&self.file_path) {
-            Ok(contents) => match serde_json::from_str::<(HashMap<u32, Task>, u32)>(&contents) {
-                Ok((tasks, next_id)) => {
-                    self.tasks = tasks;
-                    self.next_id = next_id;
-                }
-                Err(e) => eprintln!("Error parsing tasks: {}", e),
-            },
-            Err(e) => eprintln!("Error reading tasks file: {}", e),
-        }
+        let contents = fs::read_to_string(&self.file_path)
+            .map_err(|e| format!("Error reading tasks file: {}", e))?;
+
+        let (tasks, next_id) = serde_json::from_str::<(HashMap<u32, Task>, u32)>(&contents)
+            .map_err(|e| format!("Error parsing tasks: {}", e))?;
+
+        self.tasks = tasks;
+        self.next_id = next_id;
+        Ok(())
     }
 
-    fn save_tasks(&self) {
-        let contents = match serde_json::to_string(&(self.tasks.clone(), self.next_id)) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Error serializing tasks: {}", e);
-                return;
-            }
-        };
+    pub(crate) fn save_tasks(&self) -> Result<(), String> {
+        let contents = serde_json::to_string(&(self.tasks.clone(), self.next_id))
+            .map_err(|e| format!("Error serializing tasks: {}", e))?;
 
-        match File::create(&self.file_path) {
-            Ok(mut file) => {
-                if let Err(e) = file.write_all(contents.as_bytes()) {
-                    eprintln!("Error writing to tasks file: {}", e);
-                }
-            }
-            Err(e) => eprintln!("Error creating tasks file: {}", e),
-        }
+        let mut file = File::create(&self.file_path)
+            .map_err(|e| format!("Error creating tasks file: {}", e))?;
+
+        file.write_all(contents.as_bytes())
+            .map_err(|e| format!("Error writing to tasks file: {}", e))?;
+
+        Ok(())
     }
 }
 
@@ -986,7 +969,9 @@ pub fn run_scheduler_background_thread(
                             if let Some(task) = sched.tasks.get_mut(&task_id) {
                                 if index < task.reminders.len() {
                                     task.reminders[index].error_message = error_message;
-                                    sched.save_tasks();
+                                    if let Err(e) = sched.save_tasks() {
+                                        eprintln!("Warning: failed to save reminder error state: {}", e);
+                                    }
                                 }
                             }
                         }

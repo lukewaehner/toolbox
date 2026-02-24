@@ -16,7 +16,7 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 
 ### Error Handling
 
-- [ ] **ERR-01**: All `.unwrap()` / `.expect()` calls replaced with `Result`-based error handling
+- [x] **ERR-01**: All `.unwrap()` / `.expect()` calls replaced with `Result`-based error handling
 - [ ] **ERR-02**: Email configuration save/load errors propagated to UI layer (not swallowed with `eprintln!`)
 - [ ] **ERR-03**: File I/O errors (tasks, passwords) propagated to caller
 
@@ -32,7 +32,7 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 
 ### Terminal Safety
 
-- [ ] **TERM-01**: Terminal restored to normal state on panic (Drop guard on raw mode)
+- [x] **TERM-01**: Terminal restored to normal state on panic (Drop guard on raw mode)
 
 ### Library Migration
 
@@ -86,14 +86,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ARCH-02 | Phase 1+2 | Audited (Phase 1 plan 01-01 complete) |
 | ARCH-03 | Phase 1 | Audited (Phase 1 plan 01-02 complete) |
 | ARCH-04 | Phase 2 | Complete |
-| ERR-01 | Phase 3 | Pending |
+| ERR-01 | Phase 3 | Complete |
 | ERR-02 | Phase 3 | Pending |
 | ERR-03 | Phase 3 | Pending |
 | TASK-01 | Phase 4 | Pending |
 | TASK-02 | Phase 4 | Pending |
 | SYS-01 | Phase 5 | Pending |
 | SYS-02 | Phase 5 | Pending |
-| TERM-01 | Phase 3 | Pending |
+| TERM-01 | Phase 3 | Complete |
 | LIB-01 | Phase 6 | Pending |
 
 **Coverage:**
@@ -103,4 +103,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after plan 01-02 completion (Phase 1 complete)*
+*Last updated: 2026-02-23 after plan 03-01 completion (ERR-01 and TERM-01 complete)*

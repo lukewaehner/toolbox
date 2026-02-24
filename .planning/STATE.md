@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 2 — Architecture Consolidation (in progress)
+**Current focus:** Phase 3 — Error Handling Foundation (in progress)
 
 ## Current Position
 
-Phase: 2 of 6 (Architecture Consolidation)
-Plan: 3 of 5 in current phase
-Status: Plan 02-03 complete — app.rs and backups/ deleted; prepare_status_message pub(crate) in main.rs; zero crate::app:: references; main.rs is sole crate root
-Last activity: 2026-02-24 — Plan 02-03 complete (app.rs + backups/ deleted, crate::app:: references fixed)
+Phase: 3 of 6 (Error Handling Foundation)
+Plan: 1 of 3 in current phase
+Status: Plan 03-01 complete — panic hook installed; zero .unwrap()/.expect() in compiled code tree; terminal restore on crash path established
+Last activity: 2026-02-23 — Plan 03-01 complete (panic hook + unwrap elimination across main.rs and network_tools model)
 
-Progress: [█████░░░░░] 33%
+Progress: [██████░░░░] 46%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 3.4 min
-- Total execution time: 22 min
+- Total plans completed: 6
+- Average duration: 3.8 min
+- Total execution time: 30 min
 
 **By Phase:**
 
@@ -29,6 +29,7 @@ Progress: [█████░░░░░] 33%
 |-------|-------|-------|----------|
 | 01-audit | 2 | 5 min | 2.5 min |
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
+| 03-error-handling-foundation | 1 | 8 min | 8 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.4 min
@@ -66,6 +67,10 @@ Recent decisions affecting current work:
 - 02-03: prepare_status_message made pub(crate) in main.rs — MVC submodules call it via crate::prepare_status_message without going through deleted app.rs
 - 02-03: legacy handlers/ files also updated for consistency — zero crate::app:: references across all src/ files
 - 02-03: mod app; was already absent from main.rs (audit was correct — app.rs was dead code, not declared as module)
+- 03-01: panic hook registered before enable_raw_mode — restores terminal on panic path; TerminalCleanup drop guard handles normal exit; both paths covered
+- 03-01: is_dark_mode() .expect() replaced with let-else returning false — cosmetic function, safe fallback
+- 03-01: sort_by unwraps replaced with match (Option, Option) pattern — Ordering::Equal on missing IDs; IDs sourced from get_all_tasks() so gap unreachable
+- 03-01: Mutex poison recovery via unwrap_or_else(|e| e.into_inner()) in parallel_speed_test threads
 
 ### Pending Todos
 
@@ -73,11 +78,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- 105+ unwrap() sites in Phase 3 is a large sweep; may need to split into sub-plans by module
 - MVC view/controller files for network_tools, password_manager, system_utilities still reference crate::models, crate::ui, crate::shared — these need cleanup in later plans (currently compilation-disabled; crate::app references now fixed)
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 02-03-PLAN.md — app.rs and backups/ deleted, prepare_status_message pub(crate), zero crate::app:: references
+Last session: 2026-02-23
+Stopped at: Completed 03-01-PLAN.md — panic hook installed, zero .unwrap()/.expect() in compiled code tree
 Resume file: None
