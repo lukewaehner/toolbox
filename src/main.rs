@@ -3386,7 +3386,7 @@ fn set_status_message(
     });
 }
 
-fn prepare_status_message(
+pub(crate) fn prepare_status_message(
     message: &str,
     message_type: StatusMessageType,
     duration_secs: u64,

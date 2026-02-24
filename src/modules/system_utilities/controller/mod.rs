@@ -1,4 +1,4 @@
-use crate::app::prepare_status_message;
+use crate::prepare_status_message;
 use crate::models::app_state::{
     AppState, ConfirmationDialogue, ProcessSortType, StatusMessageType, SystemViewMode,
 };

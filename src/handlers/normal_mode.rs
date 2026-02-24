@@ -1,4 +1,4 @@
-use crate::app::prepare_status_message;
+use crate::prepare_status_message;
 use crate::models::app_state::{AppState, InputMode, MenuItem, StatusMessageType};
 use crate::network_tools::{ping, SpeedTestResult};
 use crate::system_utilities::SystemMonitor;
@@ -18,7 +18,7 @@ pub fn handle_normal_mode(
 ) -> io::Result<()> {
     match (code, &app_state.active_menu) {
         (KeyCode::Char('q'), _) => {
-            crate::app::cleanup_resources(app_state);
+            crate::cleanup_resources(app_state);
             running.store(false, Ordering::Relaxed);
         }
         (KeyCode::Char('1'), MenuItem::Main) => {

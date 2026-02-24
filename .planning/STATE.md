@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 2 of 6 (Architecture Consolidation)
-Plan: 1 of 5 in current phase
-Status: Plan 02-01 complete — task_scheduler.rs deleted, types consolidated in MVC module
-Last activity: 2026-02-23 — Plan 02-01 complete (task_scheduler type consolidation)
+Plan: 2 of 5 in current phase
+Status: Plan 02-02 complete — network_tools.rs, password_manager.rs, system_utilities.rs deleted; all imports via MVC model paths
+Last activity: 2026-02-24 — Plan 02-02 complete (three legacy files deleted, imports rewired)
 
-Progress: [███░░░░░░░] 20%
+Progress: [████░░░░░░] 27%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 3.0 min
-- Total execution time: 11 min
+- Total plans completed: 4
+- Average duration: 3.5 min
+- Total execution time: 19 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-audit | 2 | 5 min | 2.5 min |
-| 02-architecture-consolidation | 1 | 6 min | 6 min |
+| 02-architecture-consolidation | 2 | 14 min | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: 3.0 min
+- Last 5 plans: 3.5 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - 02-01: pub use task:: and pub use scheduler:: re-exports removed from model/mod.rs to prevent type conflicts
 - 02-01: modules/mod.rs restricted to task_scheduler only — other MVC modules have unresolvable deps handled in plans 02-02 through 02-04
 - 02-01: scheduler.rs rewritten without thiserror/crate::core — those crates/modules don't exist in current codebase
+- 02-02: MVC view/controller sub-modules disabled in mod.rs for network_tools, password_manager, system_utilities — they reference crate::models, crate::ui, crate::shared which don't exist; only model exposed
+- 02-02: modules/mod.rs now exposes all four modules; view/controller per-module files will need separate cleanup in later plans
+- 02-02: bare network_tools::, system_utilities::, password_manager:: calls in main.rs replaced with full crate::modules::*::model:: paths
 
 ### Pending Todos
 
@@ -68,10 +71,10 @@ None yet.
 ### Blockers/Concerns
 
 - 105+ unwrap() sites in Phase 3 is a large sweep; may need to split into sub-plans by module
-- modules/mod.rs currently only exposes task_scheduler; plans 02-02 through 02-04 must add network_tools, password_manager, system_utilities to modules/mod.rs as their MVC models are wired in
+- MVC view/controller files for network_tools, password_manager, system_utilities still reference crate::models, crate::ui, crate::shared, crate::app — these need cleanup in later plans (currently compilation-disabled)
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 02-01-PLAN.md — task_scheduler type consolidation, legacy file deleted
+Last session: 2026-02-24
+Stopped at: Completed 02-02-PLAN.md — network_tools/password_manager/system_utilities legacy files deleted, imports rewired
 Resume file: None

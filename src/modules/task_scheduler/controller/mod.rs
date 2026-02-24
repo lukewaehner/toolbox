@@ -1,4 +1,4 @@
-use crate::app::prepare_status_message;
+use crate::prepare_status_message;
 use crate::models::app_state::{AppState, InputMode, StatusMessageType};
 use crate::modules::task_scheduler::model::{EmailConfig, ReminderType, SmsConfig};
 use chrono::{Local, NaiveDateTime};
@@ -156,13 +156,13 @@ pub fn handle_viewing_tasks_mode(
                             let mut updated_task = task.clone();
                             updated_task.status = crate::modules::task_scheduler::model::TaskStatus::Completed;
                             if let Err(e) = scheduler.update_task(task_id, updated_task) {
-                                app_state.status_message = Some(crate::app::prepare_status_message(
+                                app_state.status_message = Some(crate::prepare_status_message(
                                     &format!("Failed to update task: {}", e),
                                     StatusMessageType::Error,
                                     3,
                                 ));
                             } else {
-                                app_state.status_message = Some(crate::app::prepare_status_message(
+                                app_state.status_message = Some(crate::prepare_status_message(
                                     "Task marked as completed",
                                     StatusMessageType::Success,
                                     3,
@@ -179,13 +179,13 @@ pub fn handle_viewing_tasks_mode(
                 if let Some(ref scheduler) = app_state.task_scheduler {
                     if let Ok(mut scheduler) = scheduler.lock() {
                         if let Err(e) = scheduler.delete_task(task_id) {
-                            app_state.status_message = Some(crate::app::prepare_status_message(
+                            app_state.status_message = Some(crate::prepare_status_message(
                                 &format!("Failed to delete task: {}", e),
                                 StatusMessageType::Error,
                                 3,
                             ));
                         } else {
-                            app_state.status_message = Some(crate::app::prepare_status_message(
+                            app_state.status_message = Some(crate::prepare_status_message(
                                 "Task deleted",
                                 StatusMessageType::Success,
                                 3,
@@ -267,14 +267,14 @@ pub fn handle_email_config_mode(
                 if let Ok(scheduler) = task_scheduler.lock() {
                     match scheduler.test_email_config() {
                         Ok(_) => {
-                            app_state.status_message = Some(crate::app::prepare_status_message(
+                            app_state.status_message = Some(crate::prepare_status_message(
                                 "Test email sent successfully!",
                                 StatusMessageType::Success,
                                 5,
                             ));
                         }
                         Err(e) => {
-                            app_state.status_message = Some(crate::app::prepare_status_message(
+                            app_state.status_message = Some(crate::prepare_status_message(
                                 &format!("Failed to send test email: {}", e),
                                 StatusMessageType::Error,
                                 10, // Longer display time for errors
@@ -324,7 +324,7 @@ pub fn handle_email_config_mode(
                 || app_state.email_password.is_empty()
             {
                 println!("Email config validation failed - empty fields");
-                app_state.status_message = Some(crate::app::prepare_status_message(
+                app_state.status_message = Some(crate::prepare_status_message(
                     "All fields are required",
                     StatusMessageType::Error,
                     3,
@@ -336,7 +336,7 @@ pub fn handle_email_config_mode(
             let port = match app_state.email_smtp_port.parse::<u16>() {
                 Ok(p) => p,
                 Err(_) => {
-                    app_state.status_message = Some(crate::app::prepare_status_message(
+                    app_state.status_message = Some(crate::prepare_status_message(
                         "Invalid port number",
                         StatusMessageType::Error,
                         3,
@@ -360,7 +360,7 @@ pub fn handle_email_config_mode(
             if let Some(ref task_scheduler) = app_state.task_scheduler {
                 if let Ok(mut scheduler) = task_scheduler.lock() {
                     scheduler.set_email_config(config);
-                    app_state.status_message = Some(crate::app::prepare_status_message(
+                    app_state.status_message = Some(crate::prepare_status_message(
                         "Email configuration saved",
                         StatusMessageType::Success,
                         3,
