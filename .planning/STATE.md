@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 5 — System Utilities Stability (next)
+**Current focus:** Phase 5 — System Utilities Stability (in progress)
 
 ## Current Position
 
-Phase: 4 of 6 (Task Scheduler Stability) — PHASE COMPLETE
-Plan: 2 of 2 in current phase — PLAN COMPLETE
-Status: Plan 04-02 complete — async SMTP test via background thread and mpsc channel; TASK-02 satisfied; Phase 4 fully complete (TASK-01 + TASK-02)
-Last activity: 2026-02-24 — Plan 04-02 complete (smtp_test_receiver field, async SMTP test handler, event loop polling, notification on success/failure)
+Phase: 5 of 6 (System Utilities Stability) — IN PROGRESS
+Plan: 1 of 2 in current phase — PLAN COMPLETE
+Status: Plan 05-01 complete — per-panel error tracking state (8 fields) + SYS_FAIL_THRESHOLD + consolidated refresh block with per-panel failure detection in run_app
+Last activity: 2026-02-24 — Plan 05-01 complete (cpu/memory/disk/process fail counts and error flags, single refresh block, Arc::clone-before-mutate borrow pattern)
 
-Progress: [████████░░] 69%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 4.4 min
-- Total execution time: 40 min
+- Total plans completed: 10
+- Average duration: 4.3 min
+- Total execution time: 43 min
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [████████░░] 69%
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
 | 04-task-scheduler-stability | 2 | 10 min | 5 min |
+| 05-system-utilities-stability | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 3.4 min
+- Last 5 plans: 3.2 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - 04-02: KeyCode::Char('t') arm placed before KeyCode::Char(c) catch-all — specific pattern takes priority without needing field guards
 - 04-02: SMTP success uses NotificationSeverity::Warning (yellow) — no green/success severity variant exists; adding one not warranted for single use case
 - 04-02: extract-result-before-notify pattern used for smtp_test_receiver polling — avoids borrow conflict between immutable try_recv and mutable push_notification
+- 05-01: Arc::clone-before-mutate pattern — clone monitor Arc into local before if-let block so app_state borrow is freed for push_notification mutation
+- 05-01: saturating_add used for u8 fail counters — prevents overflow on persistent sysinfo failures without panic
+- 05-01: Single consolidated pre-draw refresh block (not two gated on active_menu) — monitoring stays current even when user navigates away from SystemUtilities
 
 ### Pending Todos
 
@@ -94,5 +98,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 04-02-PLAN.md — async SMTP test via background thread; smtp_test_receiver field; event loop polling; notification on success/failure
+Stopped at: Completed 05-01-PLAN.md — per-panel error tracking state; SYS_FAIL_THRESHOLD; consolidated refresh block; Arc::clone-before-mutate borrow fix
 Resume file: None

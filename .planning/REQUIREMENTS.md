@@ -27,8 +27,8 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 
 ### System Utilities Stability
 
-- [ ] **SYS-01**: System Utilities handles resource query failures (CPU, memory, disk) without panicking
-- [ ] **SYS-02**: System Utilities shows user-visible error when monitoring data unavailable
+- [x] **SYS-01**: System Utilities handles resource query failures (CPU, memory, disk) without panicking
+- [x] **SYS-02**: System Utilities shows user-visible error when monitoring data unavailable
 
 ### Terminal Safety
 
@@ -91,8 +91,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-03 | Phase 3 | Complete |
 | TASK-01 | Phase 4 | Complete |
 | TASK-02 | Phase 4 | Complete |
-| SYS-01 | Phase 5 | Pending |
-| SYS-02 | Phase 5 | Pending |
+| SYS-01 | Phase 5 | Complete |
+| SYS-02 | Phase 5 | Complete |
 | TERM-01 | Phase 3 | Complete |
 | LIB-01 | Phase 6 | Pending |
 

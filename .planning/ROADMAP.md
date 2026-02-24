@@ -88,7 +88,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. If a CPU, memory, or disk query returns an error (e.g., sysinfo fails), the System Utilities view shows a user-visible error indicator rather than panicking
   2. The System Utilities module can be navigated freely even when one or more monitoring data sources are unavailable — no panic, no blank/frozen screen
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Add per-panel error tracking state to AppState and wire failure detection into event loop refresh
+- [ ] 05-02-PLAN.md — Update all four System Utilities draw functions to show N/A indicators and error rows when panels are in error state
 
 ### Phase 6: Library Migration
 **Goal**: The tui 0.19 crate is replaced by ratatui and the application compiles and behaves identically from the user's perspective
@@ -111,5 +115,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Architecture Consolidation | 3/3 | Complete   | 2026-02-24 |
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
 | 4. Task Scheduler Stability | 2/2 | Complete   | 2026-02-24 |
-| 5. System Utilities Stability | 0/TBD | Not started | - |
+| 5. System Utilities Stability | 1/2 | In Progress|  |
 | 6. Library Migration | 0/TBD | Not started | - |

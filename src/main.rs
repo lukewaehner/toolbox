@@ -3265,30 +3265,47 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             .split(chunks[1]);
 
         // CPU usage gauge
-        let cpu_percent = snapshot.cpu_usage as u16;
-        let cpu_gauge = Gauge::default()
-            .block(Block::default().title("CPU Usage").borders(Borders::ALL))
-            .gauge_style(
-                Style::default()
-                    .fg(get_usage_color(cpu_percent as f32))
-                    .bg(Color::Black)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .percent(cpu_percent);
+        if app_state.cpu_panel_error {
+            let na_gauge = Gauge::default()
+                .block(Block::default().title("CPU Usage  [N/A]").borders(Borders::ALL))
+                .gauge_style(Style::default().fg(Color::DarkGray).bg(Color::Black))
+                .percent(0);
+            f.render_widget(na_gauge, cpu_layout[0]);
 
-        f.render_widget(cpu_gauge, cpu_layout[0]);
+            let na_info = Paragraph::new(vec![
+                Spans::from(vec![Span::styled(
+                    "CPU monitoring unavailable",
+                    Style::default().fg(Color::Red),
+                )]),
+            ])
+            .block(Block::default().title("CPU Info").borders(Borders::ALL));
+            f.render_widget(na_info, cpu_layout[1]);
+        } else {
+            let cpu_percent = snapshot.cpu_usage as u16;
+            let cpu_gauge = Gauge::default()
+                .block(Block::default().title("CPU Usage").borders(Borders::ALL))
+                .gauge_style(
+                    Style::default()
+                        .fg(get_usage_color(cpu_percent as f32))
+                        .bg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .percent(cpu_percent);
 
-        // CPU info
-        let cpu_info = Paragraph::new(vec![
-            Spans::from(vec![Span::raw(format!(
-                "Cores: {}",
-                snapshot.cpu_cores_count
-            ))]),
-            Spans::from(vec![Span::raw(format!("Model: {}", snapshot.cpu_name))]),
-        ])
-        .block(Block::default().title("CPU Info").borders(Borders::ALL));
+            f.render_widget(cpu_gauge, cpu_layout[0]);
 
-        f.render_widget(cpu_info, cpu_layout[1]);
+            // CPU info
+            let cpu_info = Paragraph::new(vec![
+                Spans::from(vec![Span::raw(format!(
+                    "Cores: {}",
+                    snapshot.cpu_cores_count
+                ))]),
+                Spans::from(vec![Span::raw(format!("Model: {}", snapshot.cpu_name))]),
+            ])
+            .block(Block::default().title("CPU Info").borders(Borders::ALL));
+
+            f.render_widget(cpu_info, cpu_layout[1]);
+        }
 
         // Memory section
         let mem_layout = Layout::default()
@@ -3297,45 +3314,62 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             .split(chunks[2]);
 
         // Memory usage gauge
-        let mem_percent = snapshot.memory_usage_percent as u16;
-        let mem_gauge = Gauge::default()
-            .block(Block::default().title("Memory Usage").borders(Borders::ALL))
-            .gauge_style(
-                Style::default()
-                    .fg(get_usage_color(mem_percent as f32))
-                    .bg(Color::Black)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .percent(mem_percent);
+        if app_state.memory_panel_error {
+            let na_gauge = Gauge::default()
+                .block(Block::default().title("Memory Usage  [N/A]").borders(Borders::ALL))
+                .gauge_style(Style::default().fg(Color::DarkGray).bg(Color::Black))
+                .percent(0);
+            f.render_widget(na_gauge, mem_layout[0]);
 
-        f.render_widget(mem_gauge, mem_layout[0]);
+            let na_info = Paragraph::new(vec![
+                Spans::from(vec![Span::styled(
+                    "Memory monitoring unavailable",
+                    Style::default().fg(Color::Red),
+                )]),
+            ])
+            .block(Block::default().title("Memory Info").borders(Borders::ALL));
+            f.render_widget(na_info, mem_layout[1]);
+        } else {
+            let mem_percent = snapshot.memory_usage_percent as u16;
+            let mem_gauge = Gauge::default()
+                .block(Block::default().title("Memory Usage").borders(Borders::ALL))
+                .gauge_style(
+                    Style::default()
+                        .fg(get_usage_color(mem_percent as f32))
+                        .bg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .percent(mem_percent);
 
-        // Memory info
-        let mem_info = Paragraph::new(vec![
-            Spans::from(vec![Span::raw(format!(
-                "Used: {} MB",
-                snapshot.memory_used / 1024 / 1024
-            ))]),
-            Spans::from(vec![Span::raw(format!(
-                "Total: {} MB",
-                snapshot.memory_total / 1024 / 1024
-            ))]),
-            Spans::from(vec![Span::raw(format!(
-                "Swap Used: {} MB",
-                snapshot.swap_used / 1024 / 1024
-            ))]),
-            Spans::from(vec![Span::raw(format!(
-                "Swap Total: {} MB",
-                snapshot.swap_total / 1024 / 1024
-            ))]),
-        ])
-        .block(Block::default().title("Memory Info").borders(Borders::ALL));
+            f.render_widget(mem_gauge, mem_layout[0]);
 
-        f.render_widget(mem_info, mem_layout[1]);
+            // Memory info
+            let mem_info = Paragraph::new(vec![
+                Spans::from(vec![Span::raw(format!(
+                    "Used: {} MB",
+                    snapshot.memory_used / 1024 / 1024
+                ))]),
+                Spans::from(vec![Span::raw(format!(
+                    "Total: {} MB",
+                    snapshot.memory_total / 1024 / 1024
+                ))]),
+                Spans::from(vec![Span::raw(format!(
+                    "Swap Used: {} MB",
+                    snapshot.swap_used / 1024 / 1024
+                ))]),
+                Spans::from(vec![Span::raw(format!(
+                    "Swap Total: {} MB",
+                    snapshot.swap_total / 1024 / 1024
+                ))]),
+            ])
+            .block(Block::default().title("Memory Info").borders(Borders::ALL));
+
+            f.render_widget(mem_info, mem_layout[1]);
+        }
 
         // Process list
         let process_chunk = chunks[3];
-        draw_process_list(f, snapshot, process_chunk);
+        draw_process_list(f, snapshot, process_chunk, app_state.process_panel_error);
     } else {
         // If no snapshot is available
         let no_data = Paragraph::new("Loading system data...")
@@ -3351,6 +3385,7 @@ fn draw_process_list<B: Backend>(
     f: &mut Frame<B>,
     snapshot: &crate::modules::system_utilities::model::SystemSnapshot,
     area: Rect,
+    process_error: bool,
 ) {
     // Table headers
     let header_cells = ["PID", "Name", "CPU %", "Memory", "Mem %", "Runtime"]
@@ -3361,26 +3396,63 @@ fn draw_process_list<B: Backend>(
         .style(Style::default().add_modifier(Modifier::BOLD))
         .height(1);
 
+    if process_error {
+        // Render headers normally, then a single error row
+        let error_row = Row::new(vec![
+            Cell::from("--"),
+            Cell::from("Process data unavailable")
+                .style(Style::default().fg(Color::Red)),
+            Cell::from("--"),
+            Cell::from("--"),
+            Cell::from("--"),
+            Cell::from("--"),
+        ]);
+        let table = Table::new(vec![error_row])
+            .header(header)
+            .block(Block::default().title("Top Processes").borders(Borders::ALL))
+            .widths(&[
+                Constraint::Length(8),
+                Constraint::Percentage(30),
+                Constraint::Length(8),
+                Constraint::Length(10),
+                Constraint::Length(8),
+                Constraint::Length(10),
+            ])
+            .column_spacing(1);
+        f.render_widget(table, area);
+        return;
+    }
+
     // Process rows
     let rows = snapshot.top_processes.iter().map(|process| {
         let pid = process.pid.to_string();
         let name = process.name.clone();
         let cpu = format!("{:.1}%", process.cpu_usage);
-        let mem = format!("{} MB", process.memory_usage / 1024 / 1024);
-        let mem_percent = format!("{:.1}%", process.memory_usage_percent);
+
+        let mem_mb = process.memory_usage / 1024 / 1024;
+        let mem = if mem_mb == 0 { "N/A".to_string() } else { format!("{} MB", mem_mb) };
+        let mem_percent_str = if process.memory_usage_percent == 0.0 && process.memory_usage == 0 {
+            "N/A".to_string()
+        } else {
+            format!("{:.1}%", process.memory_usage_percent)
+        };
 
         // Format runtime
         let hours = process.run_time / 3600;
         let minutes = (process.run_time % 3600) / 60;
         let seconds = process.run_time % 60;
-        let runtime = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+        let runtime = if process.run_time == 0 {
+            "N/A".to_string()
+        } else {
+            format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        };
 
         Row::new(vec![
             Cell::from(pid),
             Cell::from(name),
             Cell::from(cpu),
             Cell::from(mem),
-            Cell::from(mem_percent),
+            Cell::from(mem_percent_str),
             Cell::from(runtime),
         ])
     });
