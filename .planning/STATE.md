@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Task Scheduler and System Utilities must work reliably without crashing
-**Current focus:** Phase 4 — Task Scheduler Stability (in progress)
+**Current focus:** Phase 5 — System Utilities Stability (next)
 
 ## Current Position
 
-Phase: 4 of 6 (Task Scheduler Stability)
-Plan: 1 of 1 in current phase — PLAN COMPLETE
-Status: Plan 04-01 complete — live field validation with red-border feedback and Warning notifications for Add Task and Email Config forms; TASK-01 satisfied
-Last activity: 2026-02-24 — Plan 04-01 complete (input validation: task_date_invalid, email_address_invalid, border_style rendering, submit-time notifications)
+Phase: 4 of 6 (Task Scheduler Stability) — PHASE COMPLETE
+Plan: 2 of 2 in current phase — PLAN COMPLETE
+Status: Plan 04-02 complete — async SMTP test via background thread and mpsc channel; TASK-02 satisfied; Phase 4 fully complete (TASK-01 + TASK-02)
+Last activity: 2026-02-24 — Plan 04-02 complete (smtp_test_receiver field, async SMTP test handler, event loop polling, notification on success/failure)
 
-Progress: [████████░░] 62%
+Progress: [████████░░] 69%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 4.2 min
-- Total execution time: 38 min
+- Total plans completed: 9
+- Average duration: 4.4 min
+- Total execution time: 40 min
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [████████░░] 62%
 | 01-audit | 2 | 5 min | 2.5 min |
 | 02-architecture-consolidation | 3 | 17 min | 5.7 min |
 | 03-error-handling-foundation | 3 | 24 min | 8 min |
-| 04-task-scheduler-stability | 1 | 8 min | 8 min |
+| 04-task-scheduler-stability | 2 | 10 min | 5 min |
 
 **Recent Trend:**
 - Last 5 plans: 3.4 min
@@ -79,6 +79,9 @@ Recent decisions affecting current work:
 - 04-01: Validation flags reset on Esc but not on successful save — form fields cleared on save; flag persists but immediately clears when field length drops below threshold on next use
 - 04-01: Color::Reset used as default border fallback — matches original Block::default().borders(Borders::ALL) visual without hardcoding a color
 - 04-01: Char/Backspace arms restructured from match expressions to match blocks — required to run post-push validation without duplicating field dispatch logic
+- 04-02: KeyCode::Char('t') arm placed before KeyCode::Char(c) catch-all — specific pattern takes priority without needing field guards
+- 04-02: SMTP success uses NotificationSeverity::Warning (yellow) — no green/success severity variant exists; adding one not warranted for single use case
+- 04-02: extract-result-before-notify pattern used for smtp_test_receiver polling — avoids borrow conflict between immutable try_recv and mutable push_notification
 
 ### Pending Todos
 
@@ -91,5 +94,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 04-01-PLAN.md — live input validation with red borders and Warning notifications for Task Scheduler and Email Config forms
+Stopped at: Completed 04-02-PLAN.md — async SMTP test via background thread; smtp_test_receiver field; event loop polling; notification on success/failure
 Resume file: None

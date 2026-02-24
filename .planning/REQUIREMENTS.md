@@ -23,7 +23,7 @@ Requirements for v1.0 Stabilize milestone. Each maps to roadmap phases.
 ### Task Scheduler Stability
 
 - [x] **TASK-01**: Task Scheduler handles malformed input (invalid dates, malformed email addresses) without panicking
-- [ ] **TASK-02**: SMTP test returns user-visible error on failure instead of panicking
+- [x] **TASK-02**: SMTP test returns user-visible error on failure instead of panicking
 
 ### System Utilities Stability
 
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ERR-02 | Phase 3 | Complete |
 | ERR-03 | Phase 3 | Complete |
 | TASK-01 | Phase 4 | Complete |
-| TASK-02 | Phase 4 | Pending |
+| TASK-02 | Phase 4 | Complete |
 | SYS-01 | Phase 5 | Pending |
 | SYS-02 | Phase 5 | Pending |
 | TERM-01 | Phase 3 | Complete |
@@ -103,4 +103,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after plan 03-01 completion (ERR-01 and TERM-01 complete)*
+*Last updated: 2026-02-24 after plan 04-02 completion (TASK-02 complete; Phase 4 fully satisfied)*

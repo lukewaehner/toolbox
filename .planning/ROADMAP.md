@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Audit** - Identify canonical code and map all duplicate/legacy files before touching anything
 - [x] **Phase 2: Architecture Consolidation** - Establish single entry point and route all imports through src/modules/ (completed 2026-02-24)
 - [x] **Phase 3: Error Handling Foundation** - Replace all unwrap()/expect() calls and add terminal drop guard (completed 2026-02-24)
-- [ ] **Phase 4: Task Scheduler Stability** - Harden Task Scheduler against bad input and SMTP failures
+- [x] **Phase 4: Task Scheduler Stability** - Harden Task Scheduler against bad input and SMTP failures (completed 2026-02-24)
 - [ ] **Phase 5: System Utilities Stability** - Harden System Utilities against resource query failures
 - [ ] **Phase 6: Library Migration** - Upgrade deprecated tui crate to ratatui
 
@@ -78,8 +78,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Live field validation with red border feedback for date and email fields; cursor-jump on invalid submit
-- [ ] 04-02-PLAN.md — Async SMTP test (fix dead key binding, background thread, "Testing..." indicator, notification result)
+- [x] 04-01-PLAN.md — Live field validation with red border feedback for date and email fields; cursor-jump on invalid submit
+- [x] 04-02-PLAN.md — Async SMTP test (fix dead key binding, background thread, "Testing..." indicator, notification result)
 
 ### Phase 5: System Utilities Stability
 **Goal**: The System Utilities module handles all resource query failures gracefully and always presents either a reading or an explicit error — never a crash
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Audit | 2/2 | Complete    | 2026-02-23 |
 | 2. Architecture Consolidation | 3/3 | Complete   | 2026-02-24 |
 | 3. Error Handling Foundation | 3/3 | Complete   | 2026-02-24 |
-| 4. Task Scheduler Stability | 1/2 | In Progress|  |
+| 4. Task Scheduler Stability | 2/2 | Complete   | 2026-02-24 |
 | 5. System Utilities Stability | 0/TBD | Not started | - |
 | 6. Library Migration | 0/TBD | Not started | - |
