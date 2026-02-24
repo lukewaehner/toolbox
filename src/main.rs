@@ -40,6 +40,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 use crate::modules::system_utilities::model::SystemMonitor;
 use tui::{
     backend::Backend,
@@ -152,6 +153,37 @@ enum ProcessSortType {
     Runtime,
 }
 
+/// Severity level of a UI notification overlay
+#[derive(Debug, Clone, PartialEq)]
+enum NotificationSeverity {
+    /// Red — fatal/unrecoverable (data loss risk)
+    Error,
+    /// Yellow — recoverable failure or degraded state
+    Warning,
+}
+
+/// A transient overlay notification displayed in the bottom-right corner
+#[derive(Debug, Clone)]
+struct Notification {
+    message: String,
+    severity: NotificationSeverity,
+    created_at: Instant,
+}
+
+impl Notification {
+    fn new(message: impl Into<String>, severity: NotificationSeverity) -> Self {
+        Notification {
+            message: message.into(),
+            severity,
+            created_at: Instant::now(),
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        self.created_at.elapsed().as_secs() >= 5
+    }
+}
+
 /// Central application state structure
 ///
 /// This structure holds all the state information for the application, including:
@@ -251,6 +283,9 @@ struct AppState {
     reminder_time: String,
     /// Type of reminder (Email, Notification, Both, etc.)
     reminder_type: ReminderType,
+
+    /// Active notification messages (bottom-right overlay, auto-dismiss after 5s)
+    notifications: Vec<Notification>,
 }
 
 /// Status message displayed to the user
@@ -324,7 +359,14 @@ impl Default for AppState {
             reminder_date: String::new(),
             reminder_time: String::new(),
             reminder_type: ReminderType::Email,
+            notifications: Vec::new(),
         }
+    }
+}
+
+impl AppState {
+    fn push_notification(&mut self, message: impl Into<String>, severity: NotificationSeverity) {
+        self.notifications.push(Notification::new(message, severity));
     }
 }
 
@@ -359,6 +401,43 @@ impl Drop for TerminalCleanup {
 ///
 /// Returns an error if terminal initialization fails or if signal handling setup fails.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Install panic hook before enabling raw mode so it fires on the panic path
+    std::panic::set_hook(Box::new(|info| {
+        // Restore terminal synchronously — ignore errors since we're already panicking
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::event::DisableMouseCapture
+        );
+
+        // Format the crash message
+        let msg = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            format!("[ERROR]: Toolbox has crashed - {}", s)
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            format!("[ERROR]: Toolbox has crashed - {}", s)
+        } else {
+            "[ERROR]: Toolbox has crashed - unknown panic".to_string()
+        };
+
+        // Write to stderr
+        eprintln!("{}", msg);
+
+        // Append to ~/.toolbox/crash.log
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let log_dir = std::path::Path::new(&home).join(".toolbox");
+        let _ = std::fs::create_dir_all(&log_dir);
+        let log_path = log_dir.join("crash.log");
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)
+        {
+            use std::io::Write;
+            let _ = file.write_all(format!("{}\n", msg).as_bytes());
+        }
+    }));
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -426,46 +505,52 @@ fn run_app<B: Backend>(
 
         check_expired_status(&mut app_state);
 
-        terminal.draw(|f| match app_state.active_menu {
-            MenuItem::Main => draw_main_menu(f),
-            MenuItem::PasswordManager => match app_state.input_mode {
-                InputMode::Normal => draw_password_manager_menu(f),
-                InputMode::Editing => draw_input_modal(f, &app_state),
-                InputMode::Viewing => draw_password_list(f),
-                _ => {}
-            },
-            MenuItem::NetworkTools => match app_state.input_mode {
-                InputMode::Normal => draw_network_tools_menu(f),
-                InputMode::EnterAddress => draw_address_input(f, &app_state),
-                InputMode::ViewResults => draw_view_results(f, &app_state),
-                InputMode::SpeedTestRunning => draw_speed_test(f, &app_state),
-                _ => {}
-            },
-            MenuItem::SystemUtilities => {
-                if let Some(ref tool) = app_state.selected_system_tool {
-                    match tool.as_str() {
-                        "resource_monitor" => draw_resource_monitor(f, &app_state),
-                        "process_manager" => draw_process_list_detailed(f, &app_state),
-                        "disk_analyzer" => draw_disk_analyzer(f, &app_state),
-                        _ => draw_system_utilities_menu(f),
+        // Auto-dismiss expired notifications
+        app_state.notifications.retain(|n| !n.is_expired());
+
+        terminal.draw(|f| {
+            match app_state.active_menu {
+                MenuItem::Main => draw_main_menu(f),
+                MenuItem::PasswordManager => match app_state.input_mode {
+                    InputMode::Normal => draw_password_manager_menu(f),
+                    InputMode::Editing => draw_input_modal(f, &app_state),
+                    InputMode::Viewing => draw_password_list(f),
+                    _ => {}
+                },
+                MenuItem::NetworkTools => match app_state.input_mode {
+                    InputMode::Normal => draw_network_tools_menu(f),
+                    InputMode::EnterAddress => draw_address_input(f, &app_state),
+                    InputMode::ViewResults => draw_view_results(f, &app_state),
+                    InputMode::SpeedTestRunning => draw_speed_test(f, &app_state),
+                    _ => {}
+                },
+                MenuItem::SystemUtilities => {
+                    if let Some(ref tool) = app_state.selected_system_tool {
+                        match tool.as_str() {
+                            "resource_monitor" => draw_resource_monitor(f, &app_state),
+                            "process_manager" => draw_process_list_detailed(f, &app_state),
+                            "disk_analyzer" => draw_disk_analyzer(f, &app_state),
+                            _ => draw_system_utilities_menu(f),
+                        }
+                    } else {
+                        draw_system_utilities_menu(f);
                     }
-                } else {
-                    draw_system_utilities_menu(f);
                 }
+                MenuItem::TaskScheduler => match app_state.input_mode {
+                    InputMode::Normal => draw_task_scheduler_menu(f),
+                    InputMode::AddingTask => draw_add_task(f, &app_state),
+                    InputMode::ViewingTasks => draw_view_tasks(f, &app_state),
+                    InputMode::ConfiguringEmail => draw_email_config(f, &app_state),
+                    InputMode::AddingReminder => draw_add_reminder(f, &app_state),
+                    InputMode::Editing => {}
+                    InputMode::Viewing => {}
+                    InputMode::EnterAddress => {}
+                    InputMode::ViewResults => {}
+                    InputMode::SpeedTestRunning => {}
+                    InputMode::EditingTask => {}
+                },
             }
-            MenuItem::TaskScheduler => match app_state.input_mode {
-                InputMode::Normal => draw_task_scheduler_menu(f),
-                InputMode::AddingTask => draw_add_task(f, &app_state),
-                InputMode::ViewingTasks => draw_view_tasks(f, &app_state),
-                InputMode::ConfiguringEmail => draw_email_config(f, &app_state),
-                InputMode::AddingReminder => draw_add_reminder(f, &app_state),
-                InputMode::Editing => {}
-                InputMode::Viewing => {}
-                InputMode::EnterAddress => {}
-                InputMode::ViewResults => {}
-                InputMode::SpeedTestRunning => {}
-                InputMode::EditingTask => {}
-            },
+            render_notifications(f, &app_state.notifications);
         })?;
 
         // Refresh system data if needed
@@ -3415,6 +3500,64 @@ fn check_expired_status(app_state: &mut AppState) {
     }
 }
 
+/// Renders the notification overlay in the bottom-right corner of the terminal.
+///
+/// Notifications stack upward from the bottom. The most recent notification appears
+/// at the bottom; older ones stack above it. Each cell is 3 rows tall (border + text + border)
+/// and at most 48 columns wide. Red border/text for errors, yellow for warnings.
+fn render_notifications<B: Backend>(f: &mut Frame<B>, notifications: &[Notification]) {
+    if notifications.is_empty() {
+        return;
+    }
+
+    let terminal_area = f.size();
+    let max_width: u16 = 48;
+    let cell_height: u16 = 3;
+    let padding_right: u16 = 1;
+    let padding_bottom: u16 = 1;
+
+    // Render from bottom upward — most recent at bottom
+    for (i, notification) in notifications.iter().rev().enumerate() {
+        let y_offset = (i as u16) * cell_height;
+        let y = terminal_area
+            .height
+            .saturating_sub(cell_height + padding_bottom + y_offset);
+
+        // Clamp width to terminal width
+        let width = max_width.min(terminal_area.width.saturating_sub(padding_right));
+        let x = terminal_area.width.saturating_sub(width + padding_right);
+
+        if terminal_area.height < cell_height {
+            break; // terminal too small to render any notification
+        }
+
+        let area = tui::layout::Rect::new(x, y, width, cell_height);
+
+        let (border_color, text_color) = match notification.severity {
+            NotificationSeverity::Error => (Color::Red, Color::Red),
+            NotificationSeverity::Warning => (Color::Yellow, Color::Yellow),
+        };
+
+        // Truncate message to fit within the widget width (accounting for borders)
+        let inner_width = width.saturating_sub(2) as usize;
+        let display_msg = if notification.message.len() > inner_width && inner_width > 0 {
+            format!("{}…", &notification.message[..inner_width.saturating_sub(1)])
+        } else {
+            notification.message.clone()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color));
+
+        let paragraph = Paragraph::new(display_msg)
+            .style(Style::default().fg(text_color))
+            .block(block);
+
+        f.render_widget(paragraph, area);
+    }
+}
+
 // Allows
 #[allow(dead_code)]
 fn update_ui_with_ping_result(result: String) {
@@ -3428,4 +3571,42 @@ fn update_ui_with_error(error_message: String) {
     // Placeholder function to handle errors
     // You can update the app_state or UI here as needed
     println!("Error: {}", error_message);
+}
+
+/// Render active notification overlays in the bottom-right corner of the screen
+fn render_notifications<B: tui::backend::Backend>(
+    f: &mut tui::Frame<B>,
+    notifications: &[Notification],
+) {
+    // Filter out expired notifications
+    let active: Vec<&Notification> = notifications.iter().filter(|n| !n.is_expired()).collect();
+    if active.is_empty() {
+        return;
+    }
+
+    let area = f.size();
+    let max_notifications = 5usize;
+    let displayed = &active[active.len().saturating_sub(max_notifications)..];
+    let notification_height = displayed.len() as u16;
+    let notification_width = 40u16;
+
+    // Position in the bottom-right corner
+    let x = area.width.saturating_sub(notification_width + 1);
+    let y = area.height.saturating_sub(notification_height + 1);
+
+    for (i, notification) in displayed.iter().enumerate() {
+        let color = match notification.severity {
+            NotificationSeverity::Error => tui::style::Color::Red,
+            NotificationSeverity::Warning => tui::style::Color::Yellow,
+        };
+        let rect = tui::layout::Rect {
+            x,
+            y: y + i as u16,
+            width: notification_width,
+            height: 1,
+        };
+        let text = tui::widgets::Paragraph::new(notification.message.as_str())
+            .style(tui::style::Style::default().fg(color));
+        f.render_widget(text, rect);
+    }
 }
