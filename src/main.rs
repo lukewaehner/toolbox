@@ -1821,7 +1821,7 @@ fn parse_due_date(date_str: &str) -> Option<i64> {
     None
 }
 
-fn draw_task_scheduler_menu<B: Backend>(f: &mut Frame<B>) {
+fn draw_task_scheduler_menu(f: &mut Frame) {
     let text_color = get_text_color();
 
     let chunks = Layout::default()
@@ -1830,11 +1830,11 @@ fn draw_task_scheduler_menu<B: Backend>(f: &mut Frame<B>) {
         .split(f.size());
 
     let text = vec![
-        Spans::from(Span::raw("a. Add Task")),
-        Spans::from(Span::raw("v. View Tasks")),
-        Spans::from(Span::raw("e. Email Configuration")),
-        Spans::from(Span::raw("Esc. Back to Main Menu")),
-        Spans::from(Span::raw("Press 'q' to quit")),
+        Line::from(Span::raw("a. Add Task")),
+        Line::from(Span::raw("v. View Tasks")),
+        Line::from(Span::raw("e. Email Configuration")),
+        Line::from(Span::raw("Esc. Back to Main Menu")),
+        Line::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
         .block(
@@ -1846,7 +1846,7 @@ fn draw_task_scheduler_menu<B: Backend>(f: &mut Frame<B>) {
     f.render_widget(paragraph, chunks[0]);
 }
 
-fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_add_task(f: &mut Frame, app_state: &AppState) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -1891,7 +1891,7 @@ fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     ];
 
     for (i, (label, value, is_selected)) in fields.iter().enumerate() {
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::raw(*label),
             Span::styled(
                 (*value).clone(),
@@ -1943,7 +1943,7 @@ fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 
     // Priority field for the add task screen
-    let priority_text = Spans::from(vec![
+    let priority_text = Line::from(vec![
         Span::raw("Priority: "),
         Span::styled(
             priority_display,
@@ -1988,7 +1988,7 @@ fn draw_add_task<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 }
 
-fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_view_tasks(f: &mut Frame, app_state: &AppState) {
     let text_color = get_text_color();
 
     // Create layout with a status bar
@@ -2006,13 +2006,13 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     // Title
     let title = Paragraph::new(vec![
-        Spans::from(vec![Span::styled(
+        Line::from(vec![Span::styled(
             "TASK MANAGER",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Spans::from(vec![Span::raw(
+        Line::from(vec![Span::raw(
             "Press ↑↓ to navigate, 'r' to add reminder, 'c' to complete, 'd' to delete, 'Esc' to go back",
         )]),
     ])
@@ -2101,10 +2101,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                     state.select(Some(0));
                 }
 
-                let table = Table::new(rows)
-                    .header(header)
-                    .block(Block::default().title("Tasks").borders(Borders::ALL))
-                    .widths(&[
+                let table = Table::new(rows, [
                         Constraint::Length(5),
                         Constraint::Percentage(35),
                         Constraint::Length(19),
@@ -2112,6 +2109,8 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                         Constraint::Length(12),
                         Constraint::Length(10),
                     ])
+                    .header(header)
+                    .block(Block::default().title("Tasks").borders(Borders::ALL))
                     .column_spacing(1)
                     .highlight_style(
                         Style::default()
@@ -2126,21 +2125,21 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                 if let Some(selected_id) = app_state.selected_task_id {
                     if let Some(task) = scheduler.get_task(selected_id) {
                         let details = vec![
-                            Spans::from(vec![
+                            Line::from(vec![
                                 Span::styled(
                                     "Title: ",
                                     Style::default().add_modifier(Modifier::BOLD),
                                 ),
                                 Span::raw(&task.title),
                             ]),
-                            Spans::from(vec![
+                            Line::from(vec![
                                 Span::styled(
                                     "Description: ",
                                     Style::default().add_modifier(Modifier::BOLD),
                                 ),
                                 Span::raw(&task.description),
                             ]),
-                            Spans::from(vec![
+                            Line::from(vec![
                                 Span::styled(
                                     "Tags: ",
                                     Style::default().add_modifier(Modifier::BOLD),
@@ -2174,7 +2173,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             StatusMessageType::Error => Color::Red,
         };
 
-        let status_text = Spans::from(vec![
+        let status_text = Line::from(vec![
             Span::styled("◆ ", Style::default().fg(message_color)),
             Span::styled(&status.message, Style::default().fg(message_color)),
         ]);
@@ -2184,7 +2183,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 
     // Controls
-    let controls = Paragraph::new(vec![Spans::from(vec![Span::raw(
+    let controls = Paragraph::new(vec![Line::from(vec![Span::raw(
         "Actions: [r]Add Reminder [c]Complete [d]Delete | [↑↓]Navigate",
     )])])
     .block(Block::default().borders(Borders::TOP));
@@ -2192,7 +2191,7 @@ fn draw_view_tasks<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     f.render_widget(controls, chunks[4]);
 }
 
-fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_email_config(f: &mut Frame, app_state: &AppState) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -2256,7 +2255,7 @@ fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             value.to_string()
         };
 
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::raw(*label),
             Span::styled(
                 display_value,
@@ -2288,8 +2287,8 @@ fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     // Add instructions
     let instructions = Paragraph::new(vec![
-        Spans::from("Press 'Enter' to Save, 'Esc' to Cancel"),
-        Spans::from("Press 't' to Test Configuration"),
+        Line::from("Press 'Enter' to Save, 'Esc' to Cancel"),
+        Line::from("Press 't' to Test Configuration"),
     ])
     .block(Block::default().borders(Borders::ALL));
 
@@ -2311,7 +2310,7 @@ fn draw_email_config<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 }
 
-fn draw_add_reminder<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_add_reminder(f: &mut Frame, app_state: &AppState) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -2363,7 +2362,7 @@ fn draw_add_reminder<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     ];
 
     for (i, (label, value, is_selected)) in fields.iter().enumerate() {
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::raw(*label),
             Span::styled(
                 (*value).clone(),
@@ -2379,7 +2378,7 @@ fn draw_add_reminder<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 
     // Reminder type selection
-    let reminder_type_text = Spans::from(vec![
+    let reminder_type_text = Line::from(vec![
         Span::raw("Reminder Type: "),
         Span::styled(reminder_type_display, Style::default().fg(Color::Cyan)),
         Span::raw(" (Use ↑↓ to change)"),
@@ -2796,7 +2795,7 @@ fn is_dark_mode() -> bool {
     result.trim() == "true"
 }
 
-fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
+fn draw_main_menu(f: &mut Frame) {
     let text_color = get_text_color();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -2804,11 +2803,11 @@ fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
         .split(f.size());
 
     let text = vec![
-        Spans::from(Span::raw("1. Password Manager")),
-        Spans::from(Span::raw("2. Network Tools")),
-        Spans::from(Span::raw("3. System Utilities")),
-        Spans::from(Span::raw("4. Task Manager")),
-        Spans::from(Span::raw("Press 'q' to quit")),
+        Line::from(Span::raw("1. Password Manager")),
+        Line::from(Span::raw("2. Network Tools")),
+        Line::from(Span::raw("3. System Utilities")),
+        Line::from(Span::raw("4. Task Manager")),
+        Line::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
         .block(Block::default().title("Main Menu").borders(Borders::ALL))
@@ -2816,7 +2815,7 @@ fn draw_main_menu<B: Backend>(f: &mut Frame<B>) {
     f.render_widget(paragraph, chunks[0]);
 }
 
-fn draw_password_manager_menu<B: Backend>(f: &mut Frame<B>) {
+fn draw_password_manager_menu(f: &mut Frame) {
     let text_color = get_text_color();
 
     let chunks = Layout::default()
@@ -2825,10 +2824,10 @@ fn draw_password_manager_menu<B: Backend>(f: &mut Frame<B>) {
         .split(f.size());
 
     let text = vec![
-        Spans::from(Span::raw("a. Add Password")),
-        Spans::from(Span::raw("v. View Passwords")),
-        Spans::from(Span::raw("Esc. Back to Main Menu")),
-        Spans::from(Span::raw("Press 'q' to quit")),
+        Line::from(Span::raw("a. Add Password")),
+        Line::from(Span::raw("v. View Passwords")),
+        Line::from(Span::raw("Esc. Back to Main Menu")),
+        Line::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
         .block(
@@ -2840,7 +2839,7 @@ fn draw_password_manager_menu<B: Backend>(f: &mut Frame<B>) {
     f.render_widget(paragraph, chunks[0]);
 }
 
-fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_input_modal(f: &mut Frame, app_state: &AppState) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -2874,7 +2873,7 @@ fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     ];
 
     for (i, (label, value, is_selected)) in fields.iter().enumerate() {
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::raw(*label),
             Span::styled(
                 (*value).clone(),
@@ -2902,7 +2901,7 @@ fn draw_input_modal<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     f.render_widget(instructions, layout[4]);
 }
 
-fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
+fn draw_password_list(f: &mut Frame) {
     let text_color = get_text_color();
 
     match crate::modules::password_manager::model::retrieve_password() {
@@ -2917,10 +2916,10 @@ fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
                     .style(Style::default().fg(Color::Black)); // Set text color to black
                 f.render_widget(paragraph, f.size());
             } else {
-                let text: Vec<Spans> = passwords
+                let text: Vec<Line> = passwords
                     .iter()
                     .map(|entry| {
-                        Spans::from(vec![
+                        Line::from(vec![
                             Span::raw(format!("Service: {}, ", entry.service)),
                             Span::raw(format!("Username: {}, ", entry.username)),
                             Span::raw(format!("Password: {}", entry.password)),
@@ -2947,18 +2946,18 @@ fn draw_password_list<B: Backend>(f: &mut Frame<B>) {
     }
 }
 
-fn draw_network_tools_menu<B: Backend>(f: &mut Frame<B>) {
+fn draw_network_tools_menu(f: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(100)].as_ref())
         .split(f.size());
 
     let text = vec![
-        Spans::from(Span::raw("p. Ping")),
-        Spans::from(Span::raw("t. Traceroute")),
-        Spans::from(Span::raw("s. Speed Test")),
-        Spans::from(Span::raw("Esc. Back to Main Menu")),
-        Spans::from(Span::raw("Press 'q' to quit")),
+        Line::from(Span::raw("p. Ping")),
+        Line::from(Span::raw("t. Traceroute")),
+        Line::from(Span::raw("s. Speed Test")),
+        Line::from(Span::raw("Esc. Back to Main Menu")),
+        Line::from(Span::raw("Press 'q' to quit")),
     ];
     let paragraph = Paragraph::new(text)
         .block(
@@ -2970,7 +2969,7 @@ fn draw_network_tools_menu<B: Backend>(f: &mut Frame<B>) {
     f.render_widget(paragraph, chunks[0]);
 }
 
-fn draw_address_input<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_address_input(f: &mut Frame, app_state: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(100)].as_ref())
@@ -2978,8 +2977,8 @@ fn draw_address_input<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     let tool_name = app_state.selected_tool.as_deref().unwrap_or("Unknown Tool");
     let text = vec![
-        Spans::from(Span::raw(format!("Enter address for {}:", tool_name))),
-        Spans::from(Span::raw(&app_state.address)),
+        Line::from(Span::raw(format!("Enter address for {}:", tool_name))),
+        Line::from(Span::raw(&app_state.address)),
     ];
     let paragraph = Paragraph::new(text)
         .block(
@@ -2991,7 +2990,7 @@ fn draw_address_input<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     f.render_widget(paragraph, chunks[0]);
 }
 
-fn draw_speed_test<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_speed_test(f: &mut Frame, app_state: &AppState) {
     let display_text = if let Some(ref result) = app_state.result {
         result.clone()
     } else {
@@ -3068,7 +3067,7 @@ fn draw_speed_test<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 }
 
-fn draw_confirmation_dialogue<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_confirmation_dialogue(f: &mut Frame, app_state: &AppState) {
     if let ConfirmationDialogue::KillProcess(pid, ref name) = &app_state.confirmation_dialogue {
         // Create a centered box for the dialog
         let area = f.size();
@@ -3100,24 +3099,24 @@ fn draw_confirmation_dialogue<B: Backend>(f: &mut Frame<B>, app_state: &AppState
         );
 
         let message = vec![
-            Spans::from(vec![
+            Line::from(vec![
                 Span::raw("Are you sure you want to terminate process "),
                 Span::styled(name.clone(), Style::default().fg(Color::Yellow)),
                 Span::raw(" (PID: "),
                 Span::styled(pid.to_string(), Style::default().fg(Color::Yellow)),
                 Span::raw(")?"),
             ]),
-            Spans::from(Span::raw("")),
-            Spans::from(Span::styled(
+            Line::from(Span::raw("")),
+            Line::from(Span::styled(
                 "This action cannot be undone.",
                 Style::default().fg(Color::Red),
             )),
-            Spans::from(Span::raw("")),
-            Spans::from(vec![
+            Line::from(Span::raw("")),
+            Line::from(vec![
                 Span::styled("y", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(" - Yes, terminate the process"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("n", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(" - No, cancel"),
             ]),
@@ -3129,7 +3128,7 @@ fn draw_confirmation_dialogue<B: Backend>(f: &mut Frame<B>, app_state: &AppState
     }
 }
 
-fn draw_view_results<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_view_results(f: &mut Frame, app_state: &AppState) {
     if let Some(ref result) = app_state.result {
         // Deserialize the PingResult
         if let Ok(ping_result) = serde_json::from_str::<PingResult>(result) {
@@ -3179,10 +3178,9 @@ fn draw_view_results<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                 ]),
             ]);
 
-            let table = Table::new(rows)
+            let table = Table::new(rows, [Constraint::Length(20), Constraint::Length(20)])
                 .header(Row::new(vec!["Metric", "Value"]).style(Style::default().fg(Color::Yellow)))
-                .block(Block::default().title("Ping Results").borders(Borders::ALL))
-                .widths(&[Constraint::Length(20), Constraint::Length(20)]);
+                .block(Block::default().title("Ping Results").borders(Borders::ALL));
 
             f.render_widget(table, chunks[0]);
         } else {
@@ -3200,7 +3198,7 @@ fn draw_view_results<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     }
 }
 
-fn draw_system_utilities_menu<B: Backend>(f: &mut Frame<B>) {
+fn draw_system_utilities_menu(f: &mut Frame) {
     let text_color = get_text_color();
 
     let chunks = Layout::default()
@@ -3209,11 +3207,11 @@ fn draw_system_utilities_menu<B: Backend>(f: &mut Frame<B>) {
         .split(f.size());
 
     let text = vec![
-        Spans::from(Span::raw("r. Resource Monitor")),
-        Spans::from(Span::raw("p. Process Manager")),
-        Spans::from(Span::raw("d. Disk Space Analyzer")),
-        Spans::from(Span::raw("Esc. Back to Main Menu")),
-        Spans::from(Span::raw("Press 'q' to quit")),
+        Line::from(Span::raw("r. Resource Monitor")),
+        Line::from(Span::raw("p. Process Manager")),
+        Line::from(Span::raw("d. Disk Space Analyzer")),
+        Line::from(Span::raw("Esc. Back to Main Menu")),
+        Line::from(Span::raw("Press 'q' to quit")),
     ];
 
     let paragraph = Paragraph::new(text)
@@ -3228,7 +3226,7 @@ fn draw_system_utilities_menu<B: Backend>(f: &mut Frame<B>) {
 }
 
 // Add a function to draw the resource monitor
-fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_resource_monitor(f: &mut Frame, app_state: &AppState) {
     let text_color = get_text_color();
 
     // Create a layout for different sections
@@ -3245,10 +3243,10 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     // Title
     let title = Paragraph::new(vec![
-        Spans::from(vec![
+        Line::from(vec![
             Span::styled("SYSTEM RESOURCE MONITOR", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         ]),
-        Spans::from(vec![
+        Line::from(vec![
             Span::raw("Press 'c' for CPU details, 'm' for Memory details, 'p' for Process list, 'Esc' to go back"),
         ]),
     ])
@@ -3273,7 +3271,7 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             f.render_widget(na_gauge, cpu_layout[0]);
 
             let na_info = Paragraph::new(vec![
-                Spans::from(vec![Span::styled(
+                Line::from(vec![Span::styled(
                     "CPU monitoring unavailable",
                     Style::default().fg(Color::Red),
                 )]),
@@ -3296,11 +3294,11 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
             // CPU info
             let cpu_info = Paragraph::new(vec![
-                Spans::from(vec![Span::raw(format!(
+                Line::from(vec![Span::raw(format!(
                     "Cores: {}",
                     snapshot.cpu_cores_count
                 ))]),
-                Spans::from(vec![Span::raw(format!("Model: {}", snapshot.cpu_name))]),
+                Line::from(vec![Span::raw(format!("Model: {}", snapshot.cpu_name))]),
             ])
             .block(Block::default().title("CPU Info").borders(Borders::ALL));
 
@@ -3322,7 +3320,7 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
             f.render_widget(na_gauge, mem_layout[0]);
 
             let na_info = Paragraph::new(vec![
-                Spans::from(vec![Span::styled(
+                Line::from(vec![Span::styled(
                     "Memory monitoring unavailable",
                     Style::default().fg(Color::Red),
                 )]),
@@ -3345,19 +3343,19 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
             // Memory info
             let mem_info = Paragraph::new(vec![
-                Spans::from(vec![Span::raw(format!(
+                Line::from(vec![Span::raw(format!(
                     "Used: {} MB",
                     snapshot.memory_used / 1024 / 1024
                 ))]),
-                Spans::from(vec![Span::raw(format!(
+                Line::from(vec![Span::raw(format!(
                     "Total: {} MB",
                     snapshot.memory_total / 1024 / 1024
                 ))]),
-                Spans::from(vec![Span::raw(format!(
+                Line::from(vec![Span::raw(format!(
                     "Swap Used: {} MB",
                     snapshot.swap_used / 1024 / 1024
                 ))]),
-                Spans::from(vec![Span::raw(format!(
+                Line::from(vec![Span::raw(format!(
                     "Swap Total: {} MB",
                     snapshot.swap_total / 1024 / 1024
                 ))]),
@@ -3381,8 +3379,8 @@ fn draw_resource_monitor<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 }
 
 // Helper function to draw process list
-fn draw_process_list<B: Backend>(
-    f: &mut Frame<B>,
+fn draw_process_list(
+    f: &mut Frame,
     snapshot: &crate::modules::system_utilities::model::SystemSnapshot,
     area: Rect,
     process_error: bool,
@@ -3407,10 +3405,7 @@ fn draw_process_list<B: Backend>(
             Cell::from("--"),
             Cell::from("--"),
         ]);
-        let table = Table::new(vec![error_row])
-            .header(header)
-            .block(Block::default().title("Top Processes").borders(Borders::ALL))
-            .widths(&[
+        let table = Table::new(vec![error_row], [
                 Constraint::Length(8),
                 Constraint::Percentage(30),
                 Constraint::Length(8),
@@ -3418,6 +3413,8 @@ fn draw_process_list<B: Backend>(
                 Constraint::Length(8),
                 Constraint::Length(10),
             ])
+            .header(header)
+            .block(Block::default().title("Top Processes").borders(Borders::ALL))
             .column_spacing(1);
         f.render_widget(table, area);
         return;
@@ -3457,14 +3454,7 @@ fn draw_process_list<B: Backend>(
         ])
     });
 
-    let table = Table::new(rows)
-        .header(header)
-        .block(
-            Block::default()
-                .title("Top Processes")
-                .borders(Borders::ALL),
-        )
-        .widths(&[
+    let table = Table::new(rows, [
             Constraint::Length(8),
             Constraint::Percentage(30),
             Constraint::Length(8),
@@ -3472,6 +3462,12 @@ fn draw_process_list<B: Backend>(
             Constraint::Length(8),
             Constraint::Length(10),
         ])
+        .header(header)
+        .block(
+            Block::default()
+                .title("Top Processes")
+                .borders(Borders::ALL),
+        )
         .column_spacing(1);
 
     f.render_widget(table, area);
@@ -3489,7 +3485,7 @@ fn get_usage_color(usage: f32) -> Color {
 }
 
 // Detailed process list view
-fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_process_list_detailed(f: &mut Frame, app_state: &AppState) {
     let text_color = get_text_color();
 
     // Create layout with a status bar
@@ -3506,13 +3502,13 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
 
     // Title
     let title = Paragraph::new(vec![
-        Spans::from(vec![Span::styled(
+        Line::from(vec![Span::styled(
             "PROCESS MANAGER",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Spans::from(vec![Span::raw(
+        Line::from(vec![Span::raw(
             "Press ↑↓ to navigate, 'k' to kill selected process, 'r' to refresh, 'Esc' to go back",
         )]),
     ])
@@ -3582,10 +3578,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
                 Cell::from("--"),
             ]);
 
-            let table = Table::new(vec![error_row])
-                .header(header)
-                .block(Block::default().title("Processes").borders(Borders::ALL))
-                .widths(&[
+            let table = Table::new(vec![error_row], [
                     Constraint::Length(8),
                     Constraint::Percentage(25),
                     Constraint::Length(8),
@@ -3595,6 +3588,8 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
                     Constraint::Length(10),
                     Constraint::Length(10),
                 ])
+                .header(header)
+                .block(Block::default().title("Processes").borders(Borders::ALL))
                 .column_spacing(1);
 
             f.render_widget(table, chunks[1]);
@@ -3682,10 +3677,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
                 // app_state.selected_process_pid = Some(sorted_processes[0].pid);
             }
 
-            let table = Table::new(rows)
-                .header(header)
-                .block(Block::default().title("Processes").borders(Borders::ALL))
-                .widths(&[
+            let table = Table::new(rows, [
                     Constraint::Length(8),
                     Constraint::Percentage(25),
                     Constraint::Length(8),
@@ -3695,6 +3687,8 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
                     Constraint::Length(10),
                     Constraint::Length(10),
                 ])
+                .header(header)
+                .block(Block::default().title("Processes").borders(Borders::ALL))
                 .column_spacing(1)
                 .highlight_style(
                     Style::default()
@@ -3723,7 +3717,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
             StatusMessageType::Error => Color::Red,
         };
 
-        let status_text = Spans::from(vec![
+        let status_text = Line::from(vec![
             Span::styled("◆ ", Style::default().fg(message_color)),
             Span::styled(&status.message, Style::default().fg(message_color)),
         ]);
@@ -3733,7 +3727,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
     }
 
     // Controls (now at index 3)
-    let controls = Paragraph::new(vec![Spans::from(vec![Span::raw(
+    let controls = Paragraph::new(vec![Line::from(vec![Span::raw(
         "Sort: [p]PID [n]Name [c]CPU [m]Memory [t]Time | [r]Refresh [k]Kill [↑↓]Navigate",
     )])])
     .block(Block::default().borders(Borders::TOP));
@@ -3747,7 +3741,7 @@ fn draw_process_list_detailed<B: Backend>(f: &mut Frame<B>, app_state: &AppState
 }
 
 // Disk space analyzer view
-fn draw_disk_analyzer<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+fn draw_disk_analyzer(f: &mut Frame, app_state: &AppState) {
     let text_color = get_text_color();
 
     // Create layout
@@ -3762,13 +3756,13 @@ fn draw_disk_analyzer<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     // Title
     let title = Paragraph::new(vec![
-        Spans::from(vec![Span::styled(
+        Line::from(vec![Span::styled(
             "DISK SPACE ANALYZER",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Spans::from(vec![Span::raw("Press 'r' to refresh, 'Esc' to go back")]),
+        Line::from(vec![Span::raw("Press 'r' to refresh, 'Esc' to go back")]),
     ])
     .block(Block::default().borders(Borders::BOTTOM));
 
@@ -3778,7 +3772,7 @@ fn draw_disk_analyzer<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     if let Some(ref snapshot) = app_state.system_snapshot {
         if app_state.disk_panel_error {
             let na_msg = Paragraph::new(vec![
-                Spans::from(vec![Span::styled(
+                Line::from(vec![Span::styled(
                     "Disk data unavailable",
                     Style::default().fg(Color::Red),
                 )]),
@@ -3831,13 +3825,13 @@ fn draw_disk_analyzer<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
                 let total_gb = disk.total_space as f64 / 1_073_741_824.0;
 
                 let disk_details = Paragraph::new(vec![
-                    Spans::from(vec![Span::raw(format!("Used: {:.1} GB", used_gb))]),
-                    Spans::from(vec![Span::raw(format!(
+                    Line::from(vec![Span::raw(format!("Used: {:.1} GB", used_gb))]),
+                    Line::from(vec![Span::raw(format!(
                         "Free: {:.1} GB",
                         disk.available_space as f64 / 1_073_741_824.0
                     ))]),
-                    Spans::from(vec![Span::raw(format!("Total: {:.1} GB", total_gb))]),
-                    Spans::from(vec![Span::raw(format!("Type: {}", disk.filesystem_type))]),
+                    Line::from(vec![Span::raw(format!("Total: {:.1} GB", total_gb))]),
+                    Line::from(vec![Span::raw(format!("Type: {}", disk.filesystem_type))]),
                 ])
                 .block(Block::default().title("Details").borders(Borders::ALL));
 
@@ -3957,7 +3951,7 @@ fn check_expired_status(app_state: &mut AppState) {
 /// Notifications stack upward from the bottom. The most recent notification appears
 /// at the bottom; older ones stack above it. Each cell is 3 rows tall (border + text + border)
 /// and at most 48 columns wide. Red border/text for errors, yellow for warnings.
-fn render_notifications<B: Backend>(f: &mut Frame<B>, notifications: &[Notification]) {
+fn render_notifications(f: &mut Frame, notifications: &[Notification]) {
     if notifications.is_empty() {
         return;
     }
