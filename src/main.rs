@@ -757,6 +757,45 @@ fn run_app<B: Backend>(
                 }
             }
         }
+
+        // Poll SMTP test result — extract before notify to avoid borrow conflict
+        let smtp_result = app_state
+            .smtp_test_receiver
+            .as_ref()
+            .map(|rx| rx.try_recv());
+
+        match smtp_result {
+            Some(Ok(Ok(()))) => {
+                // Success — clear receiver and status, push notification
+                app_state.smtp_test_receiver = None;
+                app_state.status_message = None;
+                app_state.push_notification(
+                    "SMTP connection successful",
+                    NotificationSeverity::Warning,
+                );
+            }
+            Some(Ok(Err(e))) => {
+                // Failure — clear receiver and status, push error notification
+                app_state.smtp_test_receiver = None;
+                app_state.status_message = None;
+                app_state.push_notification(
+                    format!("SMTP connection failed: {}", e),
+                    NotificationSeverity::Error,
+                );
+            }
+            Some(Err(mpsc::TryRecvError::Disconnected)) => {
+                // Thread exited without sending — surface as error
+                app_state.smtp_test_receiver = None;
+                app_state.status_message = None;
+                app_state.push_notification(
+                    "SMTP test failed: thread disconnected unexpectedly",
+                    NotificationSeverity::Error,
+                );
+            }
+            Some(Err(mpsc::TryRecvError::Empty)) | None => {
+                // Still running or not started — keep "Testing SMTP..." status visible
+            }
+        }
     }
     cleanup_resources(&mut app_state);
 
